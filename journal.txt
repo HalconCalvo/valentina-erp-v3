@@ -5284,3 +5284,42 @@ MARTES 20/10/2026
   Pendiente de facturar muestran solo tarjetas y cada bandeja es su pantalla (35e50dc). Guía §8 y §12.
   OV-0055 en Retenidas = provisional de vendedor (3 %), no global. Lección: los colores de material son información;
   la regla "color solo en la cifra" no aplica a ellos.
+
+================================================================
+CIERRE DEL DÍA — 20/10/2026 (asesor)
+================================================================
+REVISIÓN DE LA TANDA 1 CON GABRIEL (pantalla por pantalla) Y CAMBIOS HECHOS EN PRUEBAS
+- Órdenes de compra: "Creada el … por …" y "Autorizada por … el … HH:MM" (sin rol técnico); Todas las OCs con columnas Creada y
+  Autorizada. Generar OC trae categoría de gasto MATERIALES (OC directa la sigue pidiendo).
+- BUG "Ver PDF oficial" corregido (mandaba la sesión por la URL; roto desde los cambios de seguridad).
+- BUG solicitud duplicada por la alarma de stock (04/09, tres pantallas al mismo tiempo): regla de una sola solicitud automática
+  por material; duplicado cancelado en Pruebas.
+- BUG total de OC no se recalculaba al editar cantidad/precio de una partida: corregido. Migración 2ecb8aa6be05 corrige MIDO
+  (OC-M260807225203: $50,082.75 → $26,212.49, Recibida total) y CERRAJES (OC-M261006223132: $15,712.80 → $12,445.80); Pruebas ya,
+  producción al pasar a main.
+- Andén aprobado: "Confirmar ingreso" en índigo; buscador por folio/proveedor y filtro por estado.
+- Piso de producción: regresan los colores MDF ámbar / Piedra violeta / bloqueado rojo, y "Listo para instalarse" en su verde de
+  antes. Diseño → Lotes también.
+- Reglas nuevas de la guía: los colores de material son información y se conservan; pantalla con sub-tarjetas muestra SOLO las
+  tarjetas y cada una abre su propia pantalla con "Regresar a …" (aplicado en Comisiones, Destajos, Pendiente de facturar).
+- OV-0055 en Retenidas ($22,782.36) es comisión ESTIMADA de vendedor (3 %) a nombre del Ing. Gabriel Frías, no global.
+- Incidente: el buzón perdió 3 instrucciones al guardarlo Claude Code desde una copia vieja; se reescribieron. Regla puesta:
+  mover a Hechas solo el bloque terminado y releer el buzón del disco antes de guardar.
+
+PENDIENTE PARA ADMINISTRACIÓN (Alejandrina / Delmy)
+- MIDO MARMOL Y GRANITO: dos cuentas por pagar de $27,689.50 con folios 4243 y 04243 (parece captura duplicada). En Valentina
+  pagado $60,812.98 contra $30,406.49 con IVA recibido. Revisar banco y factura física antes de tocar nada.
+- Idea futura: avisar si un proveedor ya tiene una factura con el mismo folio (ignorando ceros a la izquierda).
+
+PARA MAÑANA (en orden)
+1. Reiniciar Claude Code (actualización pendiente): /exit y claude --continue.
+2. Gabriel responde: (a) ¿el vendedor de OV-0055 es el Ing. Gabriel Frías?; (b) Detalle de casa en Campo con pestañas
+   (Empaque, Herrajes, Plano, Fotos, Trabajo terminado, Firma): el asesor recomienda dejarlo así (flujo del teléfono).
+3. Dudas que quedan de la tanda 1 (recomendación del asesor): etiquetas chicas en mayúsculas se quedan como Cobranza; en Detalle
+   de casa el botón de color es "Confirmar firma"; se queda "Mesa de control"; se quedan números/letras de los hubs.
+   Propuestas pendientes: Actualizar donde falta, buscador estándar de proveedor/SKU en OC directa, estados de OC en español.
+4. Revisar en Pruebas lo que falta de la tanda 1: Diseño (Simulador, Centro de impresión, Lotes), Campo, Pendiente de facturar,
+   Comisiones/Destajos ya con la regla de sub-tarjetas.
+5. Aprobar tanda 1 y arrancar tanda 2 (Tesorería, Gerencia, tablero de Dirección con el patrón de sub-tarjetas).
+6. Pendientes generales: pagar globales del Lic. en OV-0157 ($952.29), Seguimiento de OV, D43 paso 1, D39 y pase a main,
+   simulacro con el equipo.
