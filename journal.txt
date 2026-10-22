@@ -5387,3 +5387,6 @@ JUEVES 22/10/2026
   menos anticipos), ligada a la primera OC con nota; una entrega posterior de la misma factura se suma a su CxP pendiente sin
   pagos. Prueba en pantalla pendiente (extensión desconectada). Lección: los folios de OC llevan el segundo de creación; OCs
   creadas en el mismo segundo comparten folio y su anticipo ANT-<folio> se cruzaría (revisar unicidad del folio).
+- 16:29 Pruebas en pantalla en Pruebas OK: Xaze 300490 en dos entregas → una CxP $2,141.06, 3 OCs Recibida total, kárdex $923.58;
+  ZENARA en Rayos X con las cifras esperadas; OV-0115 sin EXCEL. Listo para main. Visto: fechas de factura importadas se ven un
+  día antes (medianoche guardada como UTC) — anotado en ROADMAP.

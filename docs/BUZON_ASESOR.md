@@ -68,6 +68,41 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 22/10 16:29 — Pruebas en pantalla en PRUEBAS: OK. Listo para el pase a main (lo corre Gabriel)
+Capturas en docs/pruebas_22_10/ (01–09).
+1+2. Xaze 300490 en el Andén de Pruebas, en dos entregas para probar también "se suma a la misma cuenta":
+   - "Recibir con una factura" con OC-M260520233521 (prepagada, muestra "anticipo pagado $1,073.00") y OC-M260717190517, monomando
+     a $923.58: subtotal $1,847.16, IVA $295.55, total $2,142.71, anticipos −$1,073.00, por pagar $1,069.71 (02, 03). El aviso
+     "el monto de la factura ($3,214.06) no coincide con lo recibido" salió como debe (era una entrega parcial de la factura).
+   - Recepción normal de OC-M260708174748 con el mismo folio: aviso "ya tiene una factura con ese folio: $1,069.71 PENDIENTE" y
+     el diálogo "lo recibido se suma a su cuenta por pagar pendiente" (04, 05). Andén despejado.
+   - Resultado (base de Pruebas, solo lectura): UNA cuenta por pagar 300490 por $2,141.06 (= $3,214.06 − $1,073.00) con nota
+     "Factura de varias OCs: OC-M260520233521, OC-M260717190517, OC-M260708174748"; 3 renglones a $923.58; kárdex: 3 entradas a
+     $923.58; las 3 OCs Recibida total; anticipo ANT-OC-M260520233521 cerrado como pagado; bitácora "Otra entrega de la
+     factura 300490" con $1,069.71 → $2,141.06.
+3. Folio repetido en OC prepagada SOLA: no se pudo en pantalla (la única OC prepagada de Pruebas ya entró en la prueba 1);
+   queda cubierto por su test automático. El aviso + confirmación de folio repetido sí se vio en la prueba 2.
+4. ZENARA en Pruebas: Cuentas por cobrar ya no la muestra (saldo facturado $0) (06). Archivo maestro: falta cobrar
+   $342,577.00 y OV-0115 Luna sin la etiqueta EXCEL (07). Rayos X: total facturado $1,457,265.08, total cobrado
+   $1,456,071.60, facturado sin cobrar $0.00, falta cobrar $342,577.00, "amortizarán $342,577.00 de anticipo"; avances
+   $255,619.92 y $214,767.04 (S/F), 448, 492 y 594 Pagadas (08, 09).
+   Visto (no es de hoy, anotado aparte): las fechas de factura importadas se ven un día antes (231 dice 20/04/2025; en la base
+   es 21/04/2025 00:00): la fecha se guarda a medianoche y la pantalla la pasa a hora Mérida.
+PASE A MAIN: listo. Tests (backend 383, frontend 59), build, una cabeza (064478e54c17), migración probada subir/bajar/subir en la
+copia de producción, pantalla en Pruebas. Correr: ! git push origin cd48fff:main
+Al desplegar corre en producción la migración de ZENARA/Luna. Para Xaze en producción: Corregir a 0 el monomando de
+OC-M260717190517 y OC-M260708174748 y recibir las 3 OCs con "Recibir con una factura" a $923.58.
+
+### 22/10 16:25 — Chrome ya está abierto (Gabriel): hacer las pruebas en pantalla en PRUEBAS
+1. "Recibir con una factura" en el Andén de Pruebas con las 3 OCs de BODEGA ELECTRONICA XAZE (OC-M260717190517,
+   OC-M260708174748, OC-M260520233521 prepagada): folio 300490, monomando a $923.58. Verificar: total $3,214.06, anticipo
+   $1,073.00, por pagar $2,141.06, una sola cuenta por pagar, kárdex al precio real, estados de las 3 OCs.
+2. Segunda entrega con el mismo folio (si queda algo parcial) → se suma a la misma cuenta, sin duplicar.
+3. Folio repetido en OC prepagada (opción a): avisa y deja confirmar.
+4. ZENARA (OV-0122) en Rayos X / Cobranza de Pruebas: cifras del reporte.
+Capturas en docs/pruebas_22_10/. Reportar en Hechas y decir si está listo para el pase a main (lo hace Gabriel con "! git push").
+
+
 ### 22/10 14:39 — Punto 4 HECHO en Pruebas: "Recibir con una factura" (b3db49a). Falta la prueba en pantalla
 - Andén → botón "Recibir con una factura" → su pantalla ("Regresar al Andén"): proveedor, fecha, folio y monto de la factura
   una vez; casillas con las OCs del proveedor (muestra anticipo pagado); tabla agrupada por OC con pendiente, esta entrega,
