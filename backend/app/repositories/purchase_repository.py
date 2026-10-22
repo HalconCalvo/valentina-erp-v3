@@ -468,18 +468,6 @@ def insert_reception_accounts_payable(
     return row.id
 
 
-def find_purchase_invoice_by_number_and_provider(
-    db: Session, invoice_number: str, provider_id: int
-) -> Optional[PurchaseInvoice]:
-    return db.exec(
-        select(PurchaseInvoice).where(
-            PurchaseInvoice.invoice_number == invoice_number,
-            PurchaseInvoice.provider_id == provider_id,
-            PurchaseInvoice.status != InvoiceStatus.CANCELLED,  # a cancelled invoice frees its folio
-        )
-    ).first()
-
-
 # --- Automatic requisitions (stock below minimum) ---
 AUTO_REQUISITION_DESCRIPTION = "REPOSICIÓN AUTOMÁTICA"
 ACTIVE_REQUISITION_STATUSES = ("PENDIENTE", "EN_COMPRA", "APLAZADA")

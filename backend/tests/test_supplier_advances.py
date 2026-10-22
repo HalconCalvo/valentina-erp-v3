@@ -81,6 +81,33 @@ def test_reception_cancels_an_unpaid_advance_instead_of_marking_it_paid(client_f
     assert session_fixture.get(PurchaseInvoice, advance.id).status == InvoiceStatus.CANCELLED
 
 
+def test_prepaid_reception_accepts_a_folio_shared_with_another_po(client_fixture, session_fixture,
+                                                                  auth_header_director):
+    """Gabriel 22/10 (Xaze 300490): one supplier invoice covers several POs; a fully prepaid PO is received with the
+    folio another PO of the same provider already registered (warning on screen, not a block)."""
+    provider, material = _seed_provider_and_material(session_fixture)
+    po_id = _create_draft_po(client_fixture, auth_header_director, provider.id, material.id)
+    _authorize_po(client_fixture, auth_header_director, po_id)
+    _dispatch_po(client_fixture, auth_header_director, po_id)
+    po = session_fixture.get(PurchaseOrder, po_id)
+    advance = _invoice(session_fixture, provider.id, f"ANT-{po.folio}", 1160.0, InvoiceStatus.PAID)
+    session_fixture.add(SupplierPayment(purchase_invoice_id=advance.id, provider_id=provider.id, amount=1160.0,
+                                        payment_date=date(2026, 10, 1), status=PaymentStatus.PAID,
+                                        created_by_user_id=1))
+    _invoice(session_fixture, provider.id, "300490", 1073.0)  # registered by another PO of the same invoice
+    item = session_fixture.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).first()
+    response = client_fixture.put(f"{API}/purchases/orders/{po_id}/receive", headers=auth_header_director, json={
+        "invoice_folio": "300490", "invoice_total": 1160.0,
+        "received_items": [{"item_id": item.id, "sku": material.sku, "received_qty": 10}]})
+    assert response.status_code == 200, response.text
+    session_fixture.expire_all()
+    shared = session_fixture.exec(select(PurchaseInvoice).where(PurchaseInvoice.invoice_number == "300490")).all()
+    assert sorted((i.status, i.total_amount) for i in shared) == [(InvoiceStatus.PAID, 1160.0),
+                                                                 (InvoiceStatus.PENDING, 1073.0)]
+    assert session_fixture.get(PurchaseInvoice, advance.id).status == InvoiceStatus.PAID
+    assert session_fixture.get(PurchaseOrder, po_id).status == "RECIBIDA_TOTAL"
+
+
 def test_sanitation_absorbs_paid_advances_without_payment(client_fixture, session_fixture, auth_header_director):
     provider, _ = _seed_provider_and_material(session_fixture)
     account = _account(session_fixture)

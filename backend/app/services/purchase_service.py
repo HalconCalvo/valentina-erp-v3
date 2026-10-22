@@ -1163,14 +1163,9 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
         invoice_total = (
             total_recibido_con_iva if total_recibido_con_iva > 0 else float(data.get("invoice_total", 0))
         )
+        # A prepaid PO may share its supplier invoice with other POs of the same provider (Gabriel 22/10, Xaze 300490):
+        # the repeated folio is only a warning on screen; this PAID record is this PO's part of that invoice.
         if invoice_folio and invoice_total > 0:
-            if purchase_repo.find_purchase_invoice_by_number_and_provider(
-                db, invoice_folio, po.provider_id
-            ):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"La factura {invoice_folio} ya está registrada para este proveedor.",
-                )
             tax_rate = _reception_tax_rate(data, po)
             _subtotal = round(invoice_total / (1 + tax_rate), 2)
             _tax_amount = round(invoice_total - _subtotal, 2)
