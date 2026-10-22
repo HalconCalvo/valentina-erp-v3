@@ -10,11 +10,12 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.models.audit import AuditFieldChange
-from app.models.sales import (CustomerPayment, CustomerPaymentInstallment, CXCStatus, PaymentStatus, SalesOrder,
-                              SalesOrderItem, SalesOrderStatus)
+from app.models.sales import (CustomerCreditNote, CustomerPayment, CustomerPaymentInstallment, CXCStatus, PaymentStatus,
+                              SalesOrder, SalesOrderItem, SalesOrderStatus)
 from app.models.users import User
 from app.schemas.sales_schema import PaymentPayload
 from app.services import legacy_import_service as svc
+from app.services import legacy_sync_service as legacy_sync
 from app.services import legacy_template_service as template
 from app.services import sales_service
 from tests.conftest import TEST_DIRECTOR_EMAIL
@@ -276,3 +277,18 @@ def test_cost_of_an_order_born_in_valentina_is_only_reported(session_fixture, di
     preview = svc.validate_legacy_workbook(session_fixture, data)
     assert preview["cost_changes"] == 0 and preview["orders"][0]["adds"] == 0
     assert preview["discrepancies"][0]["concept"] == "Costo de la OV (sin IVA)"
+
+
+def test_order_balance_counts_credit_notes_like_a_rounding_discount(session_fixture, director):
+    """ZENARA (Gabriel 21/10): cash collected rounded down; the difference is a credit note, never a payment, and the
+    order owes total − payments − credit notes when the Excel sync recalculates it."""
+    order = _two_invoices(session_fixture, director)
+    progress = session_fixture.exec(select(CustomerPayment).where(CustomerPayment.invoice_folio == "102")).one()
+    session_fixture.add(CustomerCreditNote(sales_order_id=order.id, customer_payment_id=progress.id,
+                                           folio="REDONDEO-EFECTIVO", note_date=datetime(2026, 2, 20), amount=15000.0,
+                                           reason="Descuento por redondeo en efectivo"))
+    session_fixture.flush()
+    legacy_sync.refresh_order_money(session_fixture, order)
+    paid = sum(i.amount for i in _active(session_fixture, CustomerPaymentInstallment, is_cancelled=False))
+    assert order.outstanding_balance == round(order.total_price - paid - 15000.0, 2)
+    assert session_fixture.get(CustomerPayment, progress.id).status == CXCStatus.PAID

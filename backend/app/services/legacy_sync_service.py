@@ -21,6 +21,7 @@ from app.core.business_time import utc_naive_to_local
 from app.models.sales import (CustomerPayment, CustomerPaymentInstallment, CXCStatus, PaymentMethod, PaymentStatus,
                               PaymentType, SalesOrder)
 from app.repositories import legacy_import_repository as legacy_repo
+from app.repositories import sales_repository as sales_repo
 from app.services import sales_service
 
 if TYPE_CHECKING:
@@ -179,11 +180,13 @@ def create_invoice_record(session: Session, order: SalesOrder, inv: _InvoicePlan
 
 
 def refresh_order_money(session: Session, order: SalesOrder) -> None:
-    """Order balance = total − active payments of its active invoices; invoice and order states follow (D16)."""
+    """Order balance = total − active payments − active credit notes of its active invoices (a rounding discount is a
+    credit note, not a payment); invoice and order states follow (D16)."""
     invoices = legacy_repo.get_active_invoices(session, order.id)
     paid = round(sum(float(i.amount or 0.0) for cxc in invoices
                      for i in legacy_repo.get_active_installments(session, cxc.id)), 2)
-    order.outstanding_balance = round(float(order.total_price or 0.0) - paid, 2)
+    credited = round(sum(sales_repo.sum_active_credit_notes(session, cxc.id) for cxc in invoices), 2)
+    order.outstanding_balance = round(float(order.total_price or 0.0) - paid - credited, 2)
     if paid <= 0:
         order.payment_status = PaymentStatus.PENDING
     elif order.outstanding_balance <= BALANCE_TOLERANCE:
