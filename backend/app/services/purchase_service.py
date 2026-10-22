@@ -19,6 +19,7 @@ from app.schemas.finance_schema import (
     PurchaseInvoiceUpdate,
 )
 from app.schemas.inventory_schema import (
+    MultiReceptionCreate,
     SalesOrderOptionRead,
     PurchaseOrderItemCancel,
     PurchaseOrderItemUpdate,
@@ -28,7 +29,7 @@ from app.schemas.inventory_schema import (
 from app.schemas.treasury_schema import OperationalExpenseCreate
 from app.services.purchase_manager import PurchaseManager
 from app.core.business_time import effective_datetime_for, today_local
-from app.services import inventory_service, material_service
+from app.services import inventory_service, material_service, payable_service
 
 OVERHEAD_CATEGORIES = [
     "MATERIALES", "PLANTA", "COMUNICACIONES", "COMBUSTIBLES", "TRANSPORTE",
@@ -146,6 +147,7 @@ def list_purchase_orders(
             "status": o.status,
             "created_at": o.created_at.isoformat() if getattr(o, "created_at", None) else None,
             "created_by_name": creator_names.get(o.created_by_user_id),
+            "provider_id": o.provider_id,
             "provider_name": prov.business_name if prov else "Proveedor Desconocido",
             "provider_email": getattr(prov, "contact_email", None) if prov else None,
             "credit_days": getattr(prov, "credit_days", 0) if prov else 0,
@@ -973,18 +975,8 @@ def _reception_tax_rate(data: dict, po) -> float:
     return float(value)
 
 
-def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
-    _ = current_user
-    po = purchase_repo.get_purchase_order_by_id(db, po_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="Orden no encontrada")
-    received_effective_at = _reception_effective_at(db, data.get("received_at"))
-
-    po.status = "RECIBIDA_PARCIAL"
-    po.invoice_folio_reported = data.get("invoice_folio")
-    po.invoice_total_reported = data.get("invoice_total")
-    po.is_advance = False
-
+def _delivery_maps(data: dict) -> tuple[dict, dict, dict, dict]:
+    """What the screen sent per PO line: quantities and edited sku/description/price, by line id or by sku."""
     received_map: dict = {}
     edited_by_sku: dict = {}
     edited_by_item_id: dict = {}
@@ -1006,7 +998,11 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
             received_by_item_id[int(_item_id)] = float(_rq)
         else:
             edited_by_sku[_sku] = _edit_data
+    return received_map, edited_by_sku, edited_by_item_id, received_by_item_id
 
+
+def _add_new_delivery_lines(db: Session, po, data: dict) -> None:
+    """Materials that came in the delivery without being in the PO become PO lines (ordered 0)."""
     for ri in (data.get("received_items") or []):
         if not ri.get("is_new"):
             continue
@@ -1025,13 +1021,15 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
         ))
     db.flush()
 
-    items_with_materials = purchase_repo.get_po_items_with_materials(db, po.id)
-    all_complete = True
+
+def _receive_lines(db: Session, po, data: dict, received_effective_at: datetime) -> list:
+    """Adds this delivery to each PO line (stock entry at the real price for lines that hold stock) and returns the
+    rows of the supplier invoice."""
+    received_map, edited_by_sku, edited_by_item_id, received_by_item_id = _delivery_maps(data)
     invoice_detail_rows: list = []
-    for row in items_with_materials:
+    for row in purchase_repo.get_po_items_with_materials(db, po.id):
         item = row["item"]
         mat = row["material"]
-        qty_ordered = float(item.quantity_ordered or 0)
         qty_this_delivery = 0.0
 
         if item.material_id:
@@ -1098,93 +1096,25 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
                 "quantity_received": qty_this_delivery,
                 "unit_cost": _final_cost,
             })
+    return invoice_detail_rows
 
-        if qty_ordered > 0 and item.quantity_received < qty_ordered:
-            all_complete = False
 
-    po.status = "RECIBIDA_TOTAL" if all_complete else "RECIBIDA_PARCIAL"
-
-    ant_invoices = purchase_repo.get_advance_invoices_by_folio_pattern(db, f"ANT-{po.folio}")
+def _close_po_advances(db: Session, po) -> float:
+    """The PO's advance invoices close at reception; returns what was really paid on them."""
     total_pagado_anticipos = 0.0
     paid_status = getattr(PaymentStatus, "PAID", "PAID")
-    for ant in ant_invoices:
+    for ant in purchase_repo.get_advance_invoices_by_folio_pattern(db, f"ANT-{po.folio}"):
         paid_advance = purchase_repo.sum_supplier_payments_by_invoice(db, ant.id, paid_status)
         total_pagado_anticipos += paid_advance
         _close_advance_invoice(ant, paid_advance)
         db.add(ant)
+    return total_pagado_anticipos
 
-    tax_rate = _reception_tax_rate(data, po)
-    _subtotal_detalle = sum(r["quantity_received"] * r["unit_cost"] for r in invoice_detail_rows)
-    if _subtotal_detalle > 0:
-        total_recibido_con_iva = round(_subtotal_detalle * (1 + tax_rate), 2)
-    else:
-        total_recibido_con_iva = float(data.get("invoice_total", 0))
-    saldo_restante = total_recibido_con_iva - total_pagado_anticipos
 
-    if saldo_restante > 0.01:
-        invoice_folio = data.get("invoice_folio")
-        if invoice_folio:
-            if purchase_repo.find_ap_by_po_folio(db, po.provider_id, invoice_folio, po_id):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"La factura {invoice_folio} ya está registrada para esta OC.",
-                )
-        prov = purchase_repo.get_provider_by_id(db, po.provider_id)
-        credit_days = getattr(prov, "credit_days", 0) or 0 if prov else 0
-        due_date = datetime.now() + timedelta(days=credit_days)
-        tax_rate = _reception_tax_rate(data, po)
-        _subtotal = round(saldo_restante / (1 + tax_rate), 2) if (1 + tax_rate) != 0 else saldo_restante
-        _tax_amount = round(saldo_restante - _subtotal, 2)
-        new_ap_id = purchase_repo.insert_reception_accounts_payable(
-            db,
-            provider_id=po.provider_id,
-            po_id=po.id,
-            folio=data.get("invoice_folio"),
-            total=saldo_restante,
-            subtotal=_subtotal,
-            tax_rate=tax_rate,
-            tax_amount=_tax_amount,
-            due_date=due_date,
-            now=datetime.now(),
-            overhead_category=getattr(po, "overhead_category", None),
-        )
-        for row in invoice_detail_rows:
-            db.add(PurchaseInvoiceItem(
-                accounts_payable_id=new_ap_id,
-                purchase_order_item_id=row["purchase_order_item_id"],
-                material_id=row["material_id"],
-                description=row["description"],
-                sku=row["sku"],
-                quantity_received=row["quantity_received"],
-                unit_cost=row["unit_cost"],
-            ))
-    else:
-        invoice_folio = data.get("invoice_folio")
-        invoice_total = (
-            total_recibido_con_iva if total_recibido_con_iva > 0 else float(data.get("invoice_total", 0))
-        )
-        # A prepaid PO may share its supplier invoice with other POs of the same provider (Gabriel 22/10, Xaze 300490):
-        # the repeated folio is only a warning on screen; this PAID record is this PO's part of that invoice.
-        if invoice_folio and invoice_total > 0:
-            tax_rate = _reception_tax_rate(data, po)
-            _subtotal = round(invoice_total / (1 + tax_rate), 2)
-            _tax_amount = round(invoice_total - _subtotal, 2)
-            db.add(PurchaseInvoice(
-                provider_id=po.provider_id,
-                invoice_number=invoice_folio,
-                issue_date=datetime.now().date(),
-                due_date=datetime.now().date(),
-                total_amount=invoice_total,
-                outstanding_balance=0.0,
-                status=getattr(InvoiceStatus, "PAID", "PAID"),
-                subtotal=_subtotal,
-                tax_rate=tax_rate,
-                tax_amount=_tax_amount,
-            ))
-
-    for _item_id in (data.get("items_to_close") or []):
+def _close_lines_and_set_status(db: Session, po, items_to_close: list) -> None:
+    for _item_id in (items_to_close or []):
         _it = purchase_repo.get_po_item_by_id(db, _item_id)
-        if not _it or _it.purchase_order_id != po_id:
+        if not _it or _it.purchase_order_id != po.id:
             continue
         _recibido = float(_it.quantity_received or 0)
         if _recibido <= 0:
@@ -1199,7 +1129,7 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
 
     _hay_pendiente = False
     _hay_recibido = False
-    for _it in purchase_repo.get_po_items(db, po_id):
+    for _it in purchase_repo.get_po_items(db, po.id):
         _rec = float(_it.quantity_received or 0)
         if _it.is_cancelled or _it.is_fulfilled:
             if _rec > 0:
@@ -1214,10 +1144,174 @@ def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
         po.status = "RECIBIDA_TOTAL" if _hay_recibido else "CANCELADA"
     else:
         po.status = "RECIBIDA_PARCIAL"
-
     db.add(po)
+
+
+def _apply_delivery(db: Session, po, data: dict, received_effective_at: datetime) -> tuple[list, float]:
+    """One PO takes one delivery: lines, stock, its advances and its state. Returns (invoice rows, advances paid)."""
+    po.invoice_folio_reported = data.get("invoice_folio")
+    po.invoice_total_reported = data.get("invoice_total")
+    po.is_advance = False
+    _add_new_delivery_lines(db, po, data)
+    rows = _receive_lines(db, po, data, received_effective_at)
+    paid_advances = _close_po_advances(db, po)
+    _close_lines_and_set_status(db, po, data.get("items_to_close") or [])
+    return rows, paid_advances
+
+
+def _open_payable_to_join(db: Session, provider_id: int, folio: Optional[str]):
+    """A pending payable of the same supplier invoice without payments takes later deliveries of that invoice."""
+    if not folio:
+        return None
+    for payable in purchase_repo.get_payables_by_folio(db, folio, provider_id):
+        if payable.status == payable_service.PAYABLE_PENDING and not purchase_repo.payable_has_payments(db, payable.id):
+            return payable
+    return None
+
+
+def _add_invoice_rows(db: Session, payable_id: int, rows: list) -> None:
+    for row in rows:
+        db.add(PurchaseInvoiceItem(
+            accounts_payable_id=payable_id,
+            purchase_order_item_id=row["purchase_order_item_id"],
+            material_id=row["material_id"],
+            description=row["description"],
+            sku=row["sku"],
+            quantity_received=row["quantity_received"],
+            unit_cost=row["unit_cost"],
+        ))
+
+
+def _split_tax(total: float, tax_rate: float) -> tuple[float, float]:
+    subtotal = round(total / (1 + tax_rate), 2) if (1 + tax_rate) != 0 else total
+    return subtotal, round(total - subtotal, 2)
+
+
+def _payable_for_delivery(db: Session, pos: list, data: dict, rows: list, to_pay: float, tax_rate: float) -> None:
+    """What the advances did not pay goes to the supplier invoice's payable: joined to the pending one of the same
+    invoice (partial deliveries, several POs) or a new one tied to the first PO."""
+    po = pos[0]
+    folio = data.get("invoice_folio")
+    existing = _open_payable_to_join(db, po.provider_id, folio)
+    if existing is not None:
+        total = round(float(existing.total_amount or 0) + to_pay, 2)
+        subtotal, tax = _split_tax(total, tax_rate)
+        first = purchase_repo.get_purchase_order_by_id(db, existing.purchase_order_id) \
+            if existing.purchase_order_id else None
+        folios = ([first.folio] if first else []) + [p.folio for p in pos]
+        payable_service.add_reception_to_payable(db, existing, subtotal, tax, total, folios)
+        _add_invoice_rows(db, existing.id, rows)
+        return
+    if folio and purchase_repo.find_ap_by_po_folio(db, po.provider_id, folio, po.id):
+        raise HTTPException(status_code=400, detail=f"La factura {folio} ya está registrada para esta OC.")
+    prov = purchase_repo.get_provider_by_id(db, po.provider_id)
+    credit_days = getattr(prov, "credit_days", 0) or 0 if prov else 0
+    subtotal, tax = _split_tax(to_pay, tax_rate)
+    new_ap_id = purchase_repo.insert_reception_accounts_payable(
+        db,
+        provider_id=po.provider_id,
+        po_id=po.id,
+        folio=folio,
+        total=to_pay,
+        subtotal=subtotal,
+        tax_rate=tax_rate,
+        tax_amount=tax,
+        due_date=datetime.now() + timedelta(days=credit_days),
+        now=datetime.now(),
+        overhead_category=getattr(po, "overhead_category", None),
+        notes=multi_po_note([p.folio for p in pos]),
+    )
+    _add_invoice_rows(db, new_ap_id, rows)
+
+
+def multi_po_note(folios: list) -> Optional[str]:
+    return f"Factura de varias OCs: {', '.join(folios)}" if len(folios) > 1 else None
+
+
+def _paid_invoice_for_delivery(db: Session, provider_id: int, data: dict, invoice_total: float,
+                               tax_rate: float) -> None:
+    """Fully prepaid: the supplier invoice is recorded as paid. A prepaid PO may share its supplier invoice with other
+    POs of the same provider (Gabriel 22/10, Xaze 300490): the repeated folio is only a warning on screen."""
+    invoice_folio = data.get("invoice_folio")
+    if not (invoice_folio and invoice_total > 0):
+        return
+    subtotal, tax = _split_tax(invoice_total, tax_rate)
+    db.add(PurchaseInvoice(
+        provider_id=provider_id,
+        invoice_number=invoice_folio,
+        issue_date=datetime.now().date(),
+        due_date=datetime.now().date(),
+        total_amount=invoice_total,
+        outstanding_balance=0.0,
+        status=getattr(InvoiceStatus, "PAID", "PAID"),
+        subtotal=subtotal,
+        tax_rate=tax_rate,
+        tax_amount=tax,
+    ))
+
+
+def _register_supplier_invoice(db: Session, pos: list, data: dict, rows: list, advances: float) -> None:
+    """The delivery's supplier invoice: IVA once on everything received, minus what the POs' advances paid."""
+    tax_rate = _reception_tax_rate(data, pos[0])
+    subtotal = sum(r["quantity_received"] * r["unit_cost"] for r in rows)
+    total = round(subtotal * (1 + tax_rate), 2) if subtotal > 0 else float(data.get("invoice_total", 0))
+    to_pay = total - advances
+    if to_pay > 0.01:
+        _payable_for_delivery(db, pos, data, rows, to_pay, tax_rate)
+    else:
+        _paid_invoice_for_delivery(db, pos[0].provider_id, data,
+                                   total if total > 0 else float(data.get("invoice_total", 0)), tax_rate)
+
+
+def receive_purchase_order(db: Session, po_id: int, data: dict, current_user):
+    _ = current_user
+    po = purchase_repo.get_purchase_order_by_id(db, po_id)
+    if not po:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    received_effective_at = _reception_effective_at(db, data.get("received_at"))
+    rows, advances = _apply_delivery(db, po, data, received_effective_at)
+    _register_supplier_invoice(db, [po], data, rows, advances)
     db.commit()
     return {"status": "success", "message": "Inventario ingresado y finanzas conciliadas."}
+
+
+RECEIVABLE_PO_STATUSES = ("ENVIADA", "RECIBIDA_PARCIAL")
+
+
+def _orders_for_one_invoice(db: Session, order_ids: list) -> list:
+    """The POs of one supplier invoice: all exist, can still be received and belong to the same provider."""
+    if not order_ids or len(set(order_ids)) != len(order_ids):
+        raise HTTPException(status_code=422, detail="Elige al menos una OC, cada una una sola vez.")
+    pos = [purchase_repo.get_purchase_order_by_id(db, po_id) for po_id in order_ids]
+    if any(po is None for po in pos):
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    closed = [po.folio for po in pos if po.status not in RECEIVABLE_PO_STATUSES]
+    if closed:
+        raise HTTPException(status_code=400, detail=f"Estas OCs ya no se pueden recibir: {', '.join(closed)}.")
+    if len({po.provider_id for po in pos}) > 1:
+        raise HTTPException(status_code=400, detail="Una factura solo puede amparar OCs del mismo proveedor.")
+    return pos
+
+
+def receive_purchase_orders_with_one_invoice(db: Session, data: MultiReceptionCreate, current_user):
+    """Gabriel 22/10: one supplier invoice covering several POs of the same provider → one payable."""
+    _ = current_user
+    pos = _orders_for_one_invoice(db, [o.po_id for o in data.orders])
+    received_effective_at = _reception_effective_at(db, data.received_at)
+    common = {"invoice_folio": data.invoice_folio.strip(), "invoice_total": data.invoice_total,
+              "tax_rate": data.tax_rate}
+    all_rows: list = []
+    advances = 0.0
+    for po, order in zip(pos, data.orders):
+        rows, paid = _apply_delivery(db, po, {**common, "received_items": order.received_items,
+                                              "items_to_close": order.items_to_close}, received_effective_at)
+        all_rows.extend(rows)
+        advances += paid
+    if not all_rows:
+        raise HTTPException(status_code=422, detail="No se capturó ninguna cantidad recibida.")
+    _register_supplier_invoice(db, pos, common, all_rows, advances)
+    db.commit()
+    return {"status": "success", "message": f"Factura {common['invoice_folio']} recibida en {len(pos)} OC(s)."}
 
 
 def list_sales_order_options(db: Session) -> List[SalesOrderOptionRead]:

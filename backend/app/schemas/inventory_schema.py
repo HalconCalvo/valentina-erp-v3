@@ -222,3 +222,31 @@ class MaterialRouteUpdate(BaseModel):
 class StockWriteOffCreate(BaseModel):
     """Stock of a material that does not hold stock (not MATERIAL), sent to expense."""
     reason: str
+
+
+class MultiReceptionOrderCreate(BaseModel):
+    """One PO inside a reception with one supplier invoice: same line payload as the single PO reception."""
+    po_id: int
+    received_items: List[dict] = []
+    items_to_close: List[int] = []
+
+
+class MultiReceptionCreate(BaseModel):
+    """Gabriel 22/10: one supplier invoice covering several POs of the same provider."""
+    invoice_folio: str
+    invoice_total: float
+    received_at: Optional[str] = None
+    tax_rate: Optional[float] = None
+    orders: List[MultiReceptionOrderCreate]
+
+    @field_validator("invoice_folio")
+    @classmethod
+    def _folio_required(cls, value: str) -> str:
+        if not (value or "").strip():
+            raise ValueError("El folio de la factura es obligatorio.")
+        return value
+
+    @field_validator("tax_rate")
+    @classmethod
+    def _tax_rate(cls, value):
+        return _valid_tax_rate(value)

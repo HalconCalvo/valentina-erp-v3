@@ -23,6 +23,7 @@ from app.schemas.inventory_schema import (
     PurchaseOrderItemCancel,
     ManualOrderItemCreate,
     ManualOrderCreate,
+    MultiReceptionCreate,
     RequisitionCreate,
     POCreateFromPlanning,
     SalesOrderOptionRead,
@@ -216,6 +217,12 @@ def receive_purchase_order(
     data: dict = Body(...),
 ):
     return purchase_service.receive_purchase_order(db, po_id, data, current_user)
+
+@router.post("/receptions/one-invoice", dependencies=[allow(PURCHASING_ROLES)])
+def receive_orders_with_one_invoice(
+    *, db: Session = Depends(get_session), current_user: CurrentUser, data: MultiReceptionCreate,
+):
+    return purchase_service.receive_purchase_orders_with_one_invoice(db, data, current_user)
 
 @router.put("/orders/{po_id}/items/{item_id}/no-more", dependencies=[allow(PURCHASING_ROLES)])
 def mark_item_no_more(

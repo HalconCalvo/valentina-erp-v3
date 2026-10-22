@@ -370,6 +370,14 @@ def get_invoices_by_payable(db: Session, payable_id: int) -> List[PurchaseInvoic
     return list(db.exec(select(PurchaseInvoice).where(PurchaseInvoice.accounts_payable_id == payable_id)).all())
 
 
+def payable_has_payments(db: Session, payable_id: int) -> bool:
+    """Any payment request on the payable's invoices that was not cancelled or rejected."""
+    return db.exec(select(SupplierPayment.id).join(
+        PurchaseInvoice, PurchaseInvoice.id == SupplierPayment.purchase_invoice_id).where(
+        PurchaseInvoice.accounts_payable_id == payable_id,
+        SupplierPayment.status.not_in([PaymentStatus.CANCELLED, PaymentStatus.REJECTED]))).first() is not None
+
+
 def get_global_config(db: Session) -> Optional[GlobalConfig]:
     return db.exec(select(GlobalConfig)).first()
 
@@ -457,11 +465,12 @@ def insert_reception_accounts_payable(
     due_date: datetime,
     now: datetime,
     overhead_category: Optional[str],
+    notes: Optional[str] = None,
 ) -> int:
     row = AccountsPayable(
         provider_id=provider_id, purchase_order_id=po_id, invoice_folio=folio, total_amount=total,
         subtotal=subtotal, tax_rate=tax_rate, tax_amount=tax_amount, due_date=_as_datetime(due_date), status="PENDIENTE",
-        created_at=now, overhead_category=overhead_category,
+        created_at=now, overhead_category=overhead_category, notes=notes,
     )
     db.add(row)
     db.flush()

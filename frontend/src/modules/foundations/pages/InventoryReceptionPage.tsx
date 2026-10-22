@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import axiosClient from '../../../api/axios-client';
 import { MaterialForm } from '../components/MaterialForm';
+import { OneInvoiceReception } from '../components/OneInvoiceReception';
 import { Button } from "@/components/ui/Button";
 import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -64,6 +65,7 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
     const [isLoadingPOs, setIsLoadingPOs] = useState(false);
     
     const [selectedPO, setSelectedPO] = useState<any | null>(null);
+    const [oneInvoice, setOneInvoice] = useState(false);
     const [invoiceFolio, setInvoiceFolio] = useState('');
     const [receivedAt, setReceivedAt] = useState<string>(todayIso());
     const [folioWarning, setFolioWarning] = useState<any[] | null>(null);
@@ -90,8 +92,8 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
     const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
     useEffect(() => {
-        onSubSectionChange?.(selectedPO !== null);
-    }, [selectedPO, onSubSectionChange]);
+        onSubSectionChange?.(selectedPO !== null || oneInvoice);
+    }, [selectedPO, oneInvoice, onSubSectionChange]);
 
     useEffect(() => {
         fetchIncomingPOs();
@@ -575,6 +577,18 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
     const visiblePOs = incomingPOs.filter((po) => matchesSearch(poSearch, po.folio, po.provider_name)
         && (!poStatusFilter || (poStatusFilter === 'PREPAID' ? !!po.is_advance : poStatusKey(po) === poStatusFilter)));
 
+    if (oneInvoice) {
+        return (
+            <div className={embedded ? '' : 'p-8 w-full pb-24'}>
+                <OneInvoiceReception
+                    orders={incomingPOs}
+                    onBack={() => setOneInvoice(false)}
+                    onDone={() => { setOneInvoice(false); fetchIncomingPOs(); }}
+                />
+            </div>
+        );
+    }
+
     if (!selectedPO) {
         return (
             <>
@@ -616,6 +630,12 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
                                 getValue={(o) => o.value}
                                 placeholder="Todos"
                             />
+                        </div>
+                        <div className="flex items-end">
+                            <Button type="button" variant="outline" onClick={() => setOneInvoice(true)}
+                                title="Varias OCs del mismo proveedor que llegan con una sola factura">
+                                <PackageCheck size={16} /> Recibir con una factura
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -756,7 +776,7 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
                 return {
                     title: 'Factura con folio duplicado',
                     message: `La factura "${invoiceFolio.trim()}" ya está registrada para este proveedor: ${coincidencias}.`,
-                    consequence: 'Esto puede ser una OC duplicada. Confirma solo si es una factura distinta con el mismo folio.',
+                    consequence: 'Si es la misma factura (otra entrega u otra OC), lo recibido se suma a su cuenta por pagar pendiente. Si es un duplicado, cancela.',
                     variant: 'default' as const,
                     confirmLabel: 'Confirmar ingreso',
                 };

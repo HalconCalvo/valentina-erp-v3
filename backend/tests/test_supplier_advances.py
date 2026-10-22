@@ -6,14 +6,15 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash
-from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, SupplierPayment
-from app.models.foundations import GlobalConfig
+from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, PurchaseInvoiceItem, SupplierPayment
+from app.models.foundations import GlobalConfig, Provider
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem
 from app.models.treasury import BankAccount, BankTransaction
 from app.models.users import User, UserRole
 from tests.test_purchase_service import _authorize_po, _create_draft_po, _dispatch_po, _seed_provider_and_material
 
 API = settings.API_V1_STR
+AccountsPayable = SupplierPayment.AccountsPayable
 
 
 def _headers(session, role: UserRole) -> dict:
@@ -133,3 +134,79 @@ def test_sanitation_absorbs_paid_advances_without_payment(client_fixture, sessio
     assert session_fixture.get(PurchaseInvoice, orphan.id).status == InvoiceStatus.CANCELLED
     assert session_fixture.get(PurchaseInvoice, paid.id).status == InvoiceStatus.PAID
     assert session_fixture.get(SupplierPayment, approved.id).status == PaymentStatus.REJECTED
+
+
+def _open_po(client, headers, provider_id, material_id) -> int:
+    po_id = _create_draft_po(client, headers, provider_id, material_id)
+    _authorize_po(client, headers, po_id)
+    _dispatch_po(client, headers, po_id)
+    return po_id
+
+
+def _line(session, po_id) -> PurchaseOrderItem:
+    return session.exec(select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po_id)).first()
+
+
+def _payables(session):
+    return session.exec(select(AccountsPayable).where(AccountsPayable.status != "CANCELADO")).all()
+
+
+def test_one_invoice_for_several_pos_makes_one_payable_with_iva_once(client_fixture, session_fixture,
+                                                                    auth_header_director):
+    """Gabriel 22/10 (Xaze 300490): one invoice, three POs (one prepaid), real unit price → one payable for the
+    invoice minus the advance; IVA computed once (3 × $923.58 = $2,770.74 + IVA = $3,214.06)."""
+    provider, material = _seed_provider_and_material(session_fixture)
+    po_ids = [_open_po(client_fixture, auth_header_director, provider.id, material.id) for _ in range(3)]
+    for n, po_id in enumerate(po_ids):  # folios carry the second they were created; keep them apart
+        session_fixture.get(PurchaseOrder, po_id).folio = f"OC-XAZE-{n}"
+    prepaid = session_fixture.get(PurchaseOrder, po_ids[2])
+    advance = _invoice(session_fixture, provider.id, f"ANT-{prepaid.folio}", 1073.0, InvoiceStatus.PAID)
+    session_fixture.add(SupplierPayment(purchase_invoice_id=advance.id, provider_id=provider.id, amount=1073.0,
+                                        payment_date=date(2026, 6, 1), status=PaymentStatus.PAID,
+                                        created_by_user_id=1))
+    session_fixture.commit()
+    orders = [{"po_id": po_id, "received_items": [{"item_id": _line(session_fixture, po_id).id, "sku": material.sku,
+                                                    "received_qty": 1, "unit_cost": 923.58}],
+               "items_to_close": [_line(session_fixture, po_id).id]} for po_id in po_ids]
+    response = client_fixture.post(f"{API}/purchases/receptions/one-invoice", headers=auth_header_director, json={
+        "invoice_folio": "300490", "invoice_total": 3214.06, "orders": orders})
+    assert response.status_code == 200, response.text
+    session_fixture.expire_all()
+    [payable] = _payables(session_fixture)
+    assert (payable.invoice_folio, payable.total_amount) == ("300490", 2141.06)
+    assert "Factura de varias OCs" in payable.notes
+    lines = session_fixture.exec(select(PurchaseInvoiceItem).where(
+        PurchaseInvoiceItem.accounts_payable_id == payable.id)).all()
+    assert sorted(line.purchase_order_item_id for line in lines) == sorted(_line(session_fixture, p).id for p in po_ids)
+    assert {session_fixture.get(PurchaseOrder, p).status for p in po_ids} == {"RECIBIDA_TOTAL"}
+    assert session_fixture.get(PurchaseInvoice, advance.id).status == InvoiceStatus.PAID
+
+
+def test_one_invoice_cannot_mix_providers(client_fixture, session_fixture, auth_header_director):
+    provider, material = _seed_provider_and_material(session_fixture)
+    other = Provider(business_name="Otro proveedor", credit_days=0, is_active=True)
+    session_fixture.add(other)
+    session_fixture.commit()
+    first = _open_po(client_fixture, auth_header_director, provider.id, material.id)
+    second = _open_po(client_fixture, auth_header_director, other.id, material.id)
+    response = client_fixture.post(f"{API}/purchases/receptions/one-invoice", headers=auth_header_director, json={
+        "invoice_folio": "F-9", "invoice_total": 100.0,
+        "orders": [{"po_id": first, "received_items": []}, {"po_id": second, "received_items": []}]})
+    assert response.status_code == 400
+    assert "mismo proveedor" in response.json()["detail"]
+
+
+def test_partial_deliveries_of_the_same_invoice_share_one_payable(client_fixture, session_fixture,
+                                                                  auth_header_director):
+    provider, material = _seed_provider_and_material(session_fixture)
+    po_id = _open_po(client_fixture, auth_header_director, provider.id, material.id)
+    for qty in (4, 6):
+        response = client_fixture.put(f"{API}/purchases/orders/{po_id}/receive", headers=auth_header_director, json={
+            "invoice_folio": "F-77", "invoice_total": 1160.0,
+            "received_items": [{"item_id": _line(session_fixture, po_id).id, "sku": material.sku,
+                                "received_qty": qty}]})
+        assert response.status_code == 200, response.text
+    session_fixture.expire_all()
+    [payable] = _payables(session_fixture)
+    assert payable.total_amount == 1160.0  # 10 × $100 + IVA, one payable for both deliveries
+    assert session_fixture.get(PurchaseOrder, po_id).status == "RECIBIDA_TOTAL"

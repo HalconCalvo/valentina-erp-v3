@@ -48,6 +48,26 @@ def _set_amounts(session: Session, payable, subtotal: float, tax: float, total: 
         session.add(invoice)
 
 
+def add_reception_to_payable(session: Session, payable, subtotal: float, tax: float, total: float,
+                             po_folios: list) -> None:
+    """A later delivery of the same supplier invoice (partial delivery or another PO) raises its pending payable."""
+    with audit_reason(f"Otra entrega de la factura {payable.invoice_folio}: {', '.join(po_folios)}"):
+        _set_amounts(session, payable, subtotal, tax, total)
+        payable.notes = _with_po_folios(payable.notes, po_folios)
+        session.add(payable)
+        session.flush()
+
+
+def _with_po_folios(notes: Optional[str], po_folios: list) -> str:
+    """Keeps "Factura de varias OCs: …" listing every PO the invoice covers."""
+    prefix = "Factura de varias OCs: "
+    current = next((part[len(prefix):] for part in (notes or "").split("; ") if part.startswith(prefix)), "")
+    folios = [f for f in current.split(", ") if f]
+    folios += [f for f in po_folios if f not in folios]
+    rest = [part for part in (notes or "").split("; ") if part and not part.startswith(prefix)]
+    return "; ".join(rest + ([prefix + ", ".join(folios)] if len(folios) > 1 else []))
+
+
 def reduce_for_reception_correction(session: Session, payable_id: int, amount: float, reason: str) -> bool:
     """Takes `amount` (without tax) off a payable and its invoice after a reception correction.
 
