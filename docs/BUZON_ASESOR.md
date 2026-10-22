@@ -10,6 +10,22 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
+### 21/10 14:05 — OV-0122 ZENARA: preparar corrección de datos (Gabriel confirmó: efectivo cobrado REDONDEADO)
+Gabriel: los dos avances en efectivo se cobraron redondeados ($127,000.00 y $107,000.00, como ya está en Valentina).
+Preparar (NO aplicar en producción; en Pruebas sí, y para producción como migración que corre al pasar a main, igual que D39):
+1. #44: avance $255,619.92, anticipo aplicado $127,809.96, abono $127,000.00 del 23/06/2025; fecha de factura 23/06/2025
+   (hoy dice 2026). Diferencia $809.96 = descuento por redondeo en efectivo.
+2. #45: avance $214,767.04, anticipo aplicado $107,383.52, abono $107,000.00 del 11/09/2025. Diferencia $383.52 = descuento
+   por redondeo en efectivo.
+3. #47 folio 492 y #48 folio 594; recalcular estado (deben quedar Pagadas).
+4. ¿Cómo registra Valentina un descuento por redondeo para que el saldo quede en $0 sin inventar un cobro? Propón el mecanismo
+   existente (nota de crédito, ajuste con motivo…) ANTES de aplicarlo; si no existe, dilo.
+5. Resultado esperado OV-0122: facturado/cobrado según los datos de Gabriel, anticipo restante $342,577.00, falta por facturar
+   $685,154.00 bruto, saldo vencido $0. Verificar en Pruebas con una copia de esos datos.
+6. OV-0115 "Luna": quitarle la marca "viene del Excel" (con bitácora y bajada), en la misma migración.
+Bitácora en todo; reportar cifras antes/después y DETENERTE. Después Karina valida de nuevo su Excel (debe traer ZENARA con
+los mismos montos que quedarán en Valentina).
+
 ## Preguntas para el asesor
 
 - [2026-10-16 15:44] D41, dudas que NO cambié:
@@ -67,6 +83,57 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 22/10 13:52 — XAZE factura 300490: solo lectura en producción, nada cambiado. Propuesta abajo; espero aprobación
+1. QUÉ SE CREÓ HOY (capturó Delmy Barrera, 13:43–13:44). La factura 300490 trae 3 "Monomando Teka IN 915" (SKU 539150280),
+   uno por cada OC de BODEGA ELECTRONICA XAZE:
+   | OC | Antes | Recibido hoy | Después | Cuenta por pagar | Antes reportaba |
+   |---|---|---|---|---|---|
+   | OC-M260717190517 (#199) | Recibida parcial | 1 monomando a $925 | Recibida total | CxP #397 $1,073.00 ($925 + IVA), pendiente; Alejandrina la abrió y se creó la factura #439 300490 $1,073 pendiente | folio 21770 $1,140.57 |
+   | OC-M260708174748 (#171) | Recibida parcial | 1 monomando a $925 | Recibida total | CxP #398 $1,073.00, pendiente | folio 296566 $48,080.84 |
+   | OC-M260520233521 (#65) | Enviada, PREPAGADA $1,073 (anticipo pagado 01/06) | NADA (bloqueada) | Enviada | — | — |
+   - Inventario: 2 entradas de 1 monomando a $925 (existencia 0 → 2). Sin reservas. Sin pagos sobre #397/#398/#439.
+   - Bitácora: cada cambio quedó registrado con Delmy (folio/monto reportado, cantidad, estado, CxP y renglones).
+   - El "monto de la factura" que se captura NO crea la deuda: la CxP se calcula con lo recibido (cantidad × costo + IVA). Por eso
+     las dos CxP de $1,073 son correctas para un monomando cada una; el monto capturado solo queda como "reportado" en la OC.
+   - POR QUÉ BLOQUEÓ LA ÚLTIMA: la OC #65 estaba prepagada ($1,073 = su monomando con IVA). Al recibirla, Valentina registra una
+     factura ya pagada con el folio capturado y antes revisa que ese folio no exista para el proveedor; 300490 ya existía (#439,
+     de la OC #199). Mensaje: "La factura 300490 ya está registrada para este proveedor." No fue por el monto.
+   - Cifras: factura real $3,214.06 − anticipo $1,073.00 = $2,141.06 por pagar. Valentina hoy: $2,146.00 (diferencia $4.94
+     porque la factura cobra $923.58 por pieza y la OC dice $925).
+2. ¿SE PUEDE DESHACER EN PANTALLA? Sí: Compras → Todas las OCs → abrir la OC → en el renglón del monomando "Corregir" →
+   cantidad real 0 + motivo (Administración, Gerencia o Dirección; sin pagos). Regresa el inventario, cancela la CxP y su factura
+   (libera el folio) y la OC vuelve a Recibida parcial. No regresa el folio/monto "reportado" de antes (queda 300490 / $1,073).
+   PERO NO LO RECOMIENDO: al volver a capturar pasaría exactamente lo mismo (#199 y #171 quedarían igual y la #65 se volvería a
+   bloquear), porque Valentina no tiene "una factura → varias OCs".
+   RECOMENDACIÓN: no deshacer nada. #199 y #171 están bien. Falta solo recibir la #65. Opciones:
+   (a) Corrección de código (propuesta, no aplicada): si la OC está totalmente prepagada, el folio repetido del MISMO proveedor
+       se avisa (como ya avisa la pantalla) en lugar de bloquear; la factura pagada de esa OC queda ligada a la misma 300490.
+       Después Delmy recibe la #65 con folio 300490 normal. Va a Pruebas y luego a main (necesita tu autorización de pase).
+   (b) Recibir hoy la #65 con folio "300490-3" (sin código nuevo); queda la nota de que es la misma factura. Rápido pero el
+       folio no es el real.
+   Y Administración ajusta la diferencia de $4.94 al revisar la factura (o se deja; es redondeo del precio unitario).
+3. UNA FACTURA PARA VARIAS OCs: hoy NO se puede; cada recepción es de una OC y crea su propia CxP. Propuesta (no construida):
+   en el Andén, "Recibir varias OCs con una factura": se eligen OCs del mismo proveedor, se captura folio y total UNA vez,
+   cantidades por OC; se crea UNA cuenta por pagar con renglones de cada OC (los renglones ya guardan su partida de OC), se
+   restan los anticipos de esas OCs y cada OC actualiza su estado. Mismo caso que MIDO 4243/04243 y las entregas parciales con la
+   misma factura: hoy la segunda captura del mismo folio se vuelve otra CxP (o se cambia el folio para que pase).
+Me detengo. Para seguir necesito: ¿(a) o (b) para la #65?, y si se construye la recepción de varias OCs.
+
+### 22/10 13:52 — URGENTE: recepción mal capturada de BODEGA ELECTRONICA XAZE (producción, hoy). Primero SOLO LEER y reportar.
+Gabriel: llegó UNA sola factura, Fact. 300490 por $3,214.06 con 3 artículos que pertenecen a varias OCs de BODEGA ELECTRONICA XAZE.
+Al dar la recepción (parcial) de cada OC capturó como monto de factura el importe de cada OC y no el de la factura; en la última
+OC Valentina ya no le permitió capturar. Quiere deshacer esas recepciones e intentarlo de nuevo.
+1. En producción (solo lectura): listar lo que se creó hoy por esas recepciones: OCs afectadas (folio, estado antes/después),
+   partidas y cantidades recibidas, movimientos de inventario, cuentas por pagar / facturas de proveedor (folio, monto),
+   anticipos aplicados, bitácora. Decir por qué bloqueó la última (¿folio repetido?, ¿monto menor?).
+2. ¿Valentina tiene una forma en pantalla de cancelar/revertir una recepción (mercancía + CxP) con motivo? Si sí, dar los pasos
+   para que Gabriel lo haga él. Si no, proponer la reversión exacta (como migración/corrección con bitácora y bajada, igual que
+   las de OCs) y DETENERTE para aprobación. Producción solo se escribe con aprobación explícita de Gabriel.
+3. Cómo debe capturarse bien: una factura que ampara artículos de VARIAS OCs del mismo proveedor. ¿Valentina lo soporta
+   (una factura → varias OCs)? Si no, proponer cómo (p. ej. recibir varias OCs del mismo proveedor en una sola recepción con una
+   factura). Relacionado: MIDO folios 4243/04243 y la factura repetida en entregas parciales.
+
 
 ### 21/10 13:33 — OV-0122 ZENARA y OV-0115 Luna (solo lectura en producción; nada cambiado). Karina NO debe dar "Agregar lo que falta" todavía
 1. QUÉ TIENE HOY OV-0122 EN PRODUCCIÓN (6 facturas, todas de la importación del 21/09):

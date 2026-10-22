@@ -5358,3 +5358,21 @@ MIÉRCOLES 21/10/2026
   $255,619.92 y $214,767.04 con $127,809.96 y $107,383.52 aplicados) y #44 con fecha 2026. Riesgo: si el Excel trae esos dos
   con su monto real, el importador los agregaría como nuevos. OV-0115 Luna: histórica capturada a mano el 11/09; la marca
   "viene del Excel" se puso a todas las históricas; propuesta: quitársela solo a ella con corrección auditada.
+- 12:19 PASE A PRODUCCIÓN HECHO: main en 177faed, Render migró a 2ecb8aa6be05; cifras de producción idénticas al ensayo.
+  Respaldo previo: ~/valentina_local/dumps/prod_respaldo_pre_main_20261021_1216.dump. Gabriel subió a main con "! git push"
+  (el candado de auto mode bloqueó a Claude Code, como se configuró).
+- 14:01 OV-0122 ZENARA: 492 y 594 ya existen en Valentina (#47/#48) sin folio — no se duplican. El problema son los avances en
+  efectivo #44 y #45 (montos y anticipo aplicado incompletos; año 2026 en #44). Gabriel: el efectivo se cobró REDONDEADO
+  ($127,000 y $107,000) → diferencias $809.96 y $383.52 como descuento por redondeo. Corrección encargada a Claude Code
+  (buzón 21/10 14:05), se aplicará en producción con el siguiente pase. Karina NO agrega ZENARA ni GALERIAS PH 71 todavía;
+  puede quitarlas del Excel y agregar lo demás.
+- 14:02 Pausa. Pendiente al regresar: reporte de Claude Code sobre ZENARA (mecanismo de descuento por redondeo), Karina con la
+  migración, revisar lo que queda de la tanda 1 (Simulador, Centro de impresión, Lotes, Campo, Pendiente de facturar),
+  CANEA (abono 24/09 vs 07/10 y $0.60), MIDO facturas 4243/04243 con Administración.
+
+JUEVES 22/10/2026
+- 13:52 URGENTE Xaze factura 300490 (solo lectura en producción): Delmy recibió hoy 1 monomando en OC #199 y #171 (CxP #397 y
+  #398 de $1,073 c/u, correctas); la OC #65 prepagada se bloqueó porque al recibir una OC prepagada se registra una factura
+  pagada con el folio y 300490 ya existía para el proveedor. No recomiendo deshacer (se repetiría igual). Propuestas: (a) avisar
+  en vez de bloquear el folio repetido en OCs prepagadas del mismo proveedor, (b) folio 300490-3; y "una factura → varias OCs"
+  en el Andén. Lección: el monto de factura capturado en la recepción no crea la deuda; la CxP sale de lo recibido.
