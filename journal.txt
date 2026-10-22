@@ -5376,3 +5376,10 @@ JUEVES 22/10/2026
   pagada con el folio y 300490 ya existía para el proveedor. No recomiendo deshacer (se repetiría igual). Propuestas: (a) avisar
   en vez de bloquear el folio repetido en OCs prepagadas del mismo proveedor, (b) folio 300490-3; y "una factura → varias OCs"
   en el Andén. Lección: el monto de factura capturado en la recepción no crea la deuda; la CxP sale de lo recibido.
+- 14:03–14:40 Respuestas de Gabriel: (a) folio repetido en OC prepagada = aviso (08ab033, Pruebas). Monomando: la recepción
+  sí lleva el precio real a CxP y kárdex; corregir precio en pantalla = "Corregir" a 0 + recibir de nuevo; por separado el IVA
+  por OC da $3,214.05 (1 centavo menos); con una factura para varias OCs da $3,214.06 exacto. ZENARA: migración 064478e54c17
+  en Pruebas (NC "REDONDEO-EFECTIVO" para el redondeo en efectivo; facturado $1,457,265.08, anticipo por amortizar
+  $342,577.00, falta cobrar $342,577.00; OV-0115 sin marca de Excel); el importador resta NCs en el saldo de la OV.
+  Pendiente fuera de alcance: registrar una NC fuera del importador no baja "Falta cobrar del contrato".
+  Prueba en pantalla pendiente: extensión de Chrome desconectada.

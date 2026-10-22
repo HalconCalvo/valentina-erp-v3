@@ -10,21 +10,25 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
-### 21/10 14:05 — OV-0122 ZENARA: preparar corrección de datos (Gabriel confirmó: efectivo cobrado REDONDEADO)
-Gabriel: los dos avances en efectivo se cobraron redondeados ($127,000.00 y $107,000.00, como ya está en Valentina).
-Preparar (NO aplicar en producción; en Pruebas sí, y para producción como migración que corre al pasar a main, igual que D39):
-1. #44: avance $255,619.92, anticipo aplicado $127,809.96, abono $127,000.00 del 23/06/2025; fecha de factura 23/06/2025
-   (hoy dice 2026). Diferencia $809.96 = descuento por redondeo en efectivo.
-2. #45: avance $214,767.04, anticipo aplicado $107,383.52, abono $107,000.00 del 11/09/2025. Diferencia $383.52 = descuento
-   por redondeo en efectivo.
-3. #47 folio 492 y #48 folio 594; recalcular estado (deben quedar Pagadas).
-4. ¿Cómo registra Valentina un descuento por redondeo para que el saldo quede en $0 sin inventar un cobro? Propón el mecanismo
-   existente (nota de crédito, ajuste con motivo…) ANTES de aplicarlo; si no existe, dilo.
-5. Resultado esperado OV-0122: facturado/cobrado según los datos de Gabriel, anticipo restante $342,577.00, falta por facturar
-   $685,154.00 bruto, saldo vencido $0. Verificar en Pruebas con una copia de esos datos.
-6. OV-0115 "Luna": quitarle la marca "viene del Excel" (con bitácora y bajada), en la misma migración.
-Bitácora en todo; reportar cifras antes/después y DETENERTE. Después Karina valida de nuevo su Excel (debe traer ZENARA con
-los mismos montos que quedarán en Valentina).
+### 22/10 14:03 — Respuestas de Gabriel sobre Xaze, ZENARA y recepción con varias OCs (en este orden)
+1. Opción (a) APROBADA: en una OC pagada por anticipo, folio repetido del mismo proveedor = AVISO, no bloqueo. Pruebas → probar →
+   reportar; el pase a main lo hace Gabriel con "! git push" cuando lo autorice (hoy, para que Delmy reciba OC-M260520233521 con
+   el folio real 300490).
+2. Precio del monomando (factura $923.58/pza; OCs $925.00). Gabriel: "si en la recepción podemos ajustar el precio de cada
+   artículo, adelante con que Claude Code lo corrija; si en realidad no se puede hacer ese ajuste, hay que corregir ese error".
+   a) Confirmar si la pantalla de recepción permite capturar el precio unitario real y si ese precio llega a la cuenta por pagar
+      y al costo del inventario. Si NO llega (o no se puede capturar), es un defecto: corregirlo (Pruebas primero).
+   b) Las 2 OCs ya recibidas (OC-M260717190517 y OC-M260708174748, CxP $1,073.00 c/u): dejarlas en $923.58 + IVA = $1,071.35 c/u.
+      Preferir que se haga en pantalla con "Corregir" y motivo (dar los pasos a Gabriel/Delmy); solo si la pantalla no recalcula la
+      CxP, preparar corrección con bitácora y DETENERTE para aprobación. Producción no se escribe sin aprobación explícita.
+   c) La 3ª (OC-M260520233521, anticipo $1,073.00) se recibe a $923.58: explicar qué pasa con la diferencia del anticipo ($1.65 a
+      favor) y cómo queda.
+   Meta: las 3 cuentas suman exacto la factura 300490 = $3,214.06.
+3. ZENARA (21/10 14:05): APROBADO escribir en Pruebas. Reportar cifras antes/después y detenerte antes de producción.
+4. APROBADO construir "Recibir varias OCs con una factura" en el Andén (después de 1–3): folio y total una vez, una sola CxP,
+   resta anticipos de esas OCs, precio unitario real por renglón, entregas parciales con la misma factura sin duplicar CxP.
+   Primero propuesta breve de pantalla y reglas en Hechas; luego construir en Pruebas.
+   → 1–3 HECHOS y propuesta del 4 en Hechas (22/10); el 4 se está construyendo.
 
 ## Preguntas para el asesor
 
@@ -83,6 +87,81 @@ los mismos montos que quedarán en Valentina).
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 22/10 14:28 — Avance de "Respuestas de Gabriel 14:03" (puntos 1–3 hechos; 4 propuesta abajo y en construcción)
+1. (a) Folio repetido en OC prepagada = aviso: hecho y en Pruebas (08ab033). Test: OC prepagada se recibe con un folio que otra
+   OC del mismo proveedor ya registró; queda su factura pagada y el anticipo pagado. Sin cambio el resto (el mismo folio en la
+   misma OC se sigue bloqueando). Prueba en pantalla en Pruebas PENDIENTE: la extensión de Chrome está desconectada.
+   Para producción: necesita el pase a main (Gabriel con "! git push").
+2. Monomando:
+   a) La recepción SÍ deja capturar el precio real (columna "P. unit."), y ese precio llega a la cuenta por pagar (subtotal de
+      lo recibido + IVA) y al costo del kárdex. No hay defecto que corregir.
+   b) "Corregir" en Todas las OCs solo corrige CANTIDAD, no precio. Camino en pantalla (sin escribir yo en producción): en cada
+      OC (OC-M260717190517 y OC-M260708174748) → renglón del monomando → "Corregir" → cantidad real 0, motivo "Precio real
+      $923.58 (factura 300490)". Cancela su CxP (y la factura #439), saca la pieza del inventario y la OC vuelve a parcial.
+      Luego se recibe otra vez con folio 300490 y P. unit. 923.58 → CxP $1,071.35 cada una.
+   c) La 3ª (prepagada $1,073.00) recibida a $923.58: su parte es $1,071.35; el anticipo se cierra como pagado y quedan
+      $1.65 a favor con el proveedor. Valentina lo muestra en la recepción ("Diferencia a tu favor") pero NO lo guarda como
+      saldo a favor: Administración lo descuenta en el siguiente pago a Xaze (o se anota como pendiente de tesorería).
+   Meta exacta: recibiendo cada OC por separado, el IVA se redondea por OC: 3 × $1,071.35 = $3,214.05 (1 centavo menos que la
+   factura $3,214.06). Con la recepción de varias OCs con una factura (punto 4) el IVA se calcula una vez: $2,770.74 + $443.32
+   = $3,214.06 exacto, y la cuenta por pagar queda en $3,214.06 − $1,073.00 anticipo = $2,141.06.
+   RECOMENDACIÓN: hacer hoy solo el "Corregir" a 0 de las 2 OCs y recibir las 3 juntas con la pantalla nueva cuando pase a main.
+   Si Delmy debe recibir hoy por separado: Corregir + recibir a $923.58, y la #65 con la corrección (a); queda 1 centavo abajo.
+3. ZENARA: migración 064478e54c17 aplicada en Pruebas (14:28). Mecanismo del redondeo: NOTA DE CRÉDITO a cliente ligada a la
+   factura (ya existe en Valentina), folio "REDONDEO-EFECTIVO", motivo "Descuento por redondeo en efectivo"; no inventa cobro.
+   | | Antes | Después |
+   |---|---|---|
+   | #44 avance efectivo | $127,000.00, anticipo 0, factura 23/06/2026 | $255,619.92, anticipo $127,809.96, factura 23/06/2025, NC $809.96 |
+   | #45 avance efectivo | $107,000.00, anticipo 0 | $214,767.04, anticipo $107,383.52, NC $383.52 |
+   | #47 / #48 | sin folio, Pendientes | 492 / 594, Pagadas (10/04 y 28/08/2026) |
+   | Facturado neto | $1,456,071.60 | $1,457,265.08 ✔ |
+   | Anticipo por amortizar | $577,770.48 | $342,577.00 ✔ |
+   | Facturado sin cobrar | $0 (aunque #47/#48 decían Pendiente) | $0 ✔ |
+   | Falta cobrar del contrato | $21,619.92 | $342,577.00 |
+   | OV-0115 Luna "viene del Excel" | sí | no |
+   - Abonos sin cambio ($127,000.00 y $107,000.00). 15 cambios en bitácora; la bajada (probada en la copia) lo regresa todo.
+   - "Falta por facturar $685,154.00": OV-0122 es histórica sin casas, así que la pantalla de Pendiente de facturar no la
+     calcula por casas; el dato es total − facturado bruto ($1,799,842.08 − $1,114,688.08).
+   - Ajuste de código: al sincronizar con el Excel, el saldo de la OV resta también las notas de crédito (si no, regresaba a
+     $343,770.48). Ojo (fuera de alcance, anotado): fuera del importador, registrar una NC no baja "Falta cobrar del contrato".
+   - Producción: la misma migración corre al pasar a main (protegida: solo cambia valores que sigan como hoy).
+   Karina: su Excel debe traer ZENARA con estos montos ($255,619.92 y $214,767.04 con su anticipo aplicado, abonos $127,000 y
+   $107,000); la NC de redondeo no va en el Excel.
+4. PROPUESTA "Recibir varias OCs con una factura" (se construye ahora en Pruebas):
+   Pantalla: en el Andén, botón "Recibir con una factura" → su propia pantalla ("Regresar al Andén"):
+   - Proveedor (buscador) → sus OCs en tránsito o parciales con casilla; se eligen las que ampara la factura.
+   - Folio, fecha de llegada, IVA y monto de la factura (con IVA) UNA vez.
+   - Una tabla agrupada por OC: partida, pendiente, recibido, P. unit. real, importe; "cerrar renglón" como hoy.
+   - Resumen: subtotal, IVA (una vez sobre el total), total contra el monto de la factura (mismo aviso de diferencia),
+     anticipos pagados de esas OCs y "Por pagar".
+   Reglas:
+   - Solo OCs del mismo proveedor. Cada OC actualiza cantidades, kárdex (con el precio real), estado y su anticipo (como hoy).
+   - UNA cuenta por pagar: total de la factura − anticipos pagados de esas OCs; sus renglones guardan su partida de OC.
+     Queda ligada a la primera OC (para no confundirse con gasto directo) con la nota "Factura de varias OCs: …".
+     Si los anticipos cubren todo: sin cuenta por pagar, factura pagada; lo que sobra se muestra "a favor".
+   - Entregas parciales con la misma factura: si ya hay una cuenta por pagar de ese proveedor y folio SIN pagos, la nueva
+     recepción se SUMA a ella (con aviso) en vez de crear otra; con pagos, aviso y cuenta nueva como hoy. Aplica también a la
+     recepción de una sola OC.
+   - Corrección: "Corregir" en Todas las OCs sigue funcionando por renglón y baja la cuenta compartida.
+
+### 21/10 14:05 — OV-0122 ZENARA: preparar corrección de datos (Gabriel confirmó: efectivo cobrado REDONDEADO)
+Gabriel: los dos avances en efectivo se cobraron redondeados ($127,000.00 y $107,000.00, como ya está en Valentina).
+Preparar (NO aplicar en producción; en Pruebas sí, y para producción como migración que corre al pasar a main, igual que D39):
+1. #44: avance $255,619.92, anticipo aplicado $127,809.96, abono $127,000.00 del 23/06/2025; fecha de factura 23/06/2025
+   (hoy dice 2026). Diferencia $809.96 = descuento por redondeo en efectivo.
+2. #45: avance $214,767.04, anticipo aplicado $107,383.52, abono $107,000.00 del 11/09/2025. Diferencia $383.52 = descuento
+   por redondeo en efectivo.
+3. #47 folio 492 y #48 folio 594; recalcular estado (deben quedar Pagadas).
+4. ¿Cómo registra Valentina un descuento por redondeo para que el saldo quede en $0 sin inventar un cobro? Propón el mecanismo
+   existente (nota de crédito, ajuste con motivo…) ANTES de aplicarlo; si no existe, dilo.
+5. Resultado esperado OV-0122: facturado/cobrado según los datos de Gabriel, anticipo restante $342,577.00, falta por facturar
+   $685,154.00 bruto, saldo vencido $0. Verificar en Pruebas con una copia de esos datos.
+6. OV-0115 "Luna": quitarle la marca "viene del Excel" (con bitácora y bajada), en la misma migración.
+Bitácora en todo; reportar cifras antes/después y DETENERTE. Después Karina valida de nuevo su Excel (debe traer ZENARA con
+los mismos montos que quedarán en Valentina).
+   → HECHA en Pruebas 22/10 (ver arriba).
+
 
 ### 22/10 13:52 — XAZE factura 300490: solo lectura en producción, nada cambiado. Propuesta abajo; espero aprobación
 1. QUÉ SE CREÓ HOY (capturó Delmy Barrera, 13:43–13:44). La factura 300490 trae 3 "Monomando Teka IN 915" (SKU 539150280),
