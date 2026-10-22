@@ -68,6 +68,17 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 22/10 16:32 — PASE A MAIN hecho (Gabriel corrió el push: main 177faed → 1e3d631)
+- Render: migración 064478e54c17 en producción a las 16:32; API responde; frontend nuevo publicado 16:32.
+- Producción (solo lectura), igual que Pruebas: OV-0122 #44 \$255,619.92 / #45 \$214,767.04 con su anticipo aplicado y NC de redondeo
+  \$809.96 / \$383.52; 492 y 594 Pagadas; falta cobrar \$342,577.00; OV-0115 sin marca de Excel; 15 cambios en bitácora.
+- En producción ya están "Recibir con una factura" y el aviso de folio repetido en OC prepagada.
+- Pantalla de producción: pide entrar con usuario real; Gabriel entra para revisar.
+- Xaze en producción (lo hace Delmy/Administración): Corregir a 0 el monomando de OC-M260717190517 y OC-M260708174748 (motivo
+  "Se recibe con la factura completa 300490") y luego "Recibir con una factura" con las 3 OCs a \$923.58 → CxP \$2,141.06.
+- Regreso si algo falla: main a 177faed + bajar 064478e54c17 (probada) o respaldo prod_respaldo_pre_main_20261021_1216.dump.
+
+
 ### 22/10 16:29 — Pruebas en pantalla en PRUEBAS: OK. Listo para el pase a main (lo corre Gabriel)
 Capturas en docs/pruebas_22_10/ (01–09).
 1+2. Xaze 300490 en el Andén de Pruebas, en dos entregas para probar también "se suma a la misma cuenta":
