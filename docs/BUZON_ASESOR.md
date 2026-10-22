@@ -10,26 +10,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
-### 22/10 14:03 — Respuestas de Gabriel sobre Xaze, ZENARA y recepción con varias OCs (en este orden)
-1. Opción (a) APROBADA: en una OC pagada por anticipo, folio repetido del mismo proveedor = AVISO, no bloqueo. Pruebas → probar →
-   reportar; el pase a main lo hace Gabriel con "! git push" cuando lo autorice (hoy, para que Delmy reciba OC-M260520233521 con
-   el folio real 300490).
-2. Precio del monomando (factura $923.58/pza; OCs $925.00). Gabriel: "si en la recepción podemos ajustar el precio de cada
-   artículo, adelante con que Claude Code lo corrija; si en realidad no se puede hacer ese ajuste, hay que corregir ese error".
-   a) Confirmar si la pantalla de recepción permite capturar el precio unitario real y si ese precio llega a la cuenta por pagar
-      y al costo del inventario. Si NO llega (o no se puede capturar), es un defecto: corregirlo (Pruebas primero).
-   b) Las 2 OCs ya recibidas (OC-M260717190517 y OC-M260708174748, CxP $1,073.00 c/u): dejarlas en $923.58 + IVA = $1,071.35 c/u.
-      Preferir que se haga en pantalla con "Corregir" y motivo (dar los pasos a Gabriel/Delmy); solo si la pantalla no recalcula la
-      CxP, preparar corrección con bitácora y DETENERTE para aprobación. Producción no se escribe sin aprobación explícita.
-   c) La 3ª (OC-M260520233521, anticipo $1,073.00) se recibe a $923.58: explicar qué pasa con la diferencia del anticipo ($1.65 a
-      favor) y cómo queda.
-   Meta: las 3 cuentas suman exacto la factura 300490 = $3,214.06.
-3. ZENARA (21/10 14:05): APROBADO escribir en Pruebas. Reportar cifras antes/después y detenerte antes de producción.
-4. APROBADO construir "Recibir varias OCs con una factura" en el Andén (después de 1–3): folio y total una vez, una sola CxP,
-   resta anticipos de esas OCs, precio unitario real por renglón, entregas parciales con la misma factura sin duplicar CxP.
-   Primero propuesta breve de pantalla y reglas en Hechas; luego construir en Pruebas.
-   → 1–3 HECHOS y propuesta del 4 en Hechas (22/10); el 4 se está construyendo.
-
 ## Preguntas para el asesor
 
 - [2026-10-16 15:44] D41, dudas que NO cambié:
@@ -87,6 +67,44 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 22/10 14:39 — Punto 4 HECHO en Pruebas: "Recibir con una factura" (b3db49a). Falta la prueba en pantalla
+- Andén → botón "Recibir con una factura" → su pantalla ("Regresar al Andén"): proveedor, fecha, folio y monto de la factura
+  una vez; casillas con las OCs del proveedor (muestra anticipo pagado); tabla agrupada por OC con pendiente, esta entrega,
+  P. unit. real, "No llegará más" e importe; resumen: subtotal, IVA (una vez), total, anticipos y "Por pagar" (o "A favor").
+- Servidor: cada OC recibe como siempre (kárdex al precio real, estado, anticipo); UNA cuenta por pagar = total − anticipos
+  pagados, ligada a la primera OC con la nota "Factura de varias OCs: …"; si los anticipos cubren todo, factura pagada.
+- Entregas parciales con la misma factura (también en la recepción de una OC): si hay una cuenta por pagar pendiente de ese
+  proveedor y folio sin pagos, la nueva entrega se SUMA a ella (bitácora "Otra entrega de la factura …"). El aviso de folio
+  repetido lo dice antes de confirmar.
+- Tests: Xaze 300490 con 3 OCs (una prepagada) a $923.58 → una CxP de $2,141.06 ($3,214.06 − $1,073.00); no mezcla
+  proveedores; dos entregas de la misma factura → una CxP. Backend 383, frontend 59, build OK.
+- Prueba en pantalla en Pruebas PENDIENTE (extensión de Chrome desconectada; en cuanto se conecte la hago con las 3 OCs de
+  Xaze, que en Pruebas siguen como estaban antes de hoy).
+- Para Xaze en producción (cuando pase a main): Corregir a 0 el monomando de OC-M260717190517 y OC-M260708174748 (motivo
+  "Se recibe con la factura completa 300490") y luego "Recibir con una factura" con las 3 OCs a $923.58.
+
+### 22/10 14:03 — Respuestas de Gabriel sobre Xaze, ZENARA y recepción con varias OCs (en este orden)
+1. Opción (a) APROBADA: en una OC pagada por anticipo, folio repetido del mismo proveedor = AVISO, no bloqueo. Pruebas → probar →
+   reportar; el pase a main lo hace Gabriel con "! git push" cuando lo autorice (hoy, para que Delmy reciba OC-M260520233521 con
+   el folio real 300490).
+2. Precio del monomando (factura $923.58/pza; OCs $925.00). Gabriel: "si en la recepción podemos ajustar el precio de cada
+   artículo, adelante con que Claude Code lo corrija; si en realidad no se puede hacer ese ajuste, hay que corregir ese error".
+   a) Confirmar si la pantalla de recepción permite capturar el precio unitario real y si ese precio llega a la cuenta por pagar
+      y al costo del inventario. Si NO llega (o no se puede capturar), es un defecto: corregirlo (Pruebas primero).
+   b) Las 2 OCs ya recibidas (OC-M260717190517 y OC-M260708174748, CxP $1,073.00 c/u): dejarlas en $923.58 + IVA = $1,071.35 c/u.
+      Preferir que se haga en pantalla con "Corregir" y motivo (dar los pasos a Gabriel/Delmy); solo si la pantalla no recalcula la
+      CxP, preparar corrección con bitácora y DETENERTE para aprobación. Producción no se escribe sin aprobación explícita.
+   c) La 3ª (OC-M260520233521, anticipo $1,073.00) se recibe a $923.58: explicar qué pasa con la diferencia del anticipo ($1.65 a
+      favor) y cómo queda.
+   Meta: las 3 cuentas suman exacto la factura 300490 = $3,214.06.
+3. ZENARA (21/10 14:05): APROBADO escribir en Pruebas. Reportar cifras antes/después y detenerte antes de producción.
+4. APROBADO construir "Recibir varias OCs con una factura" en el Andén (después de 1–3): folio y total una vez, una sola CxP,
+   resta anticipos de esas OCs, precio unitario real por renglón, entregas parciales con la misma factura sin duplicar CxP.
+   Primero propuesta breve de pantalla y reglas en Hechas; luego construir en Pruebas.
+   → 1–3 HECHOS y propuesta del 4 en Hechas (22/10); el 4 se está construyendo.
+   → 4 HECHO en Pruebas (ver arriba); falta prueba en pantalla.
+
 
 ### 22/10 14:28 — Avance de "Respuestas de Gabriel 14:03" (puntos 1–3 hechos; 4 propuesta abajo y en construcción)
 1. (a) Folio repetido en OC prepagada = aviso: hecho y en Pruebas (08ab033). Test: OC prepagada se recibe con un folio que otra

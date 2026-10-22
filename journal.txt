@@ -5383,3 +5383,7 @@ JUEVES 22/10/2026
   $342,577.00, falta cobrar $342,577.00; OV-0115 sin marca de Excel); el importador resta NCs en el saldo de la OV.
   Pendiente fuera de alcance: registrar una NC fuera del importador no baja "Falta cobrar del contrato".
   Prueba en pantalla pendiente: extensión de Chrome desconectada.
+- Punto 4: "Recibir con una factura" en el Andén (b3db49a, Pruebas): varias OCs del mismo proveedor, una CxP (IVA una vez,
+  menos anticipos), ligada a la primera OC con nota; una entrega posterior de la misma factura se suma a su CxP pendiente sin
+  pagos. Prueba en pantalla pendiente (extensión desconectada). Lección: los folios de OC llevan el segundo de creación; OCs
+  creadas en el mismo segundo comparten folio y su anticipo ANT-<folio> se cruzaría (revisar unicidad del folio).

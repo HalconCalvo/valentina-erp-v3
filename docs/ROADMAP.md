@@ -274,3 +274,11 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
   6. Tarjetas numeradas 1–10.
 - Criterios aplicados (reversibles) en D22.
 - Visto: la Eficiencia de Fábrica sigue en $0.00 por pieza (sin piezas READY ni nómina semanal capturada).
+
+## 14. Compras: una factura para varias OCs y correcciones de datos (Gabriel, 22/10) — en Pruebas
+- Folio repetido en OC totalmente prepagada del mismo proveedor = aviso, no bloqueo (08ab033).
+- "Recibir con una factura" en el Andén: varias OCs del mismo proveedor, una cuenta por pagar (IVA una vez, menos anticipos);
+  otra entrega de la misma factura se suma a su CxP pendiente sin pagos (b3db49a). Falta prueba en pantalla y pase a main.
+- ZENARA (OV-0122) y OV-0115: migración 064478e54c17 (Pruebas aplicada; producción al pasar a main).
+- Pendientes anotados: registrar una NC a cliente fuera del importador no baja "Falta cobrar del contrato"; folios de OC por
+  segundo de creación pueden repetirse (revisar unicidad).
