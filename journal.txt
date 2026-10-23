@@ -5443,3 +5443,4 @@ VIERNES 23/10/2026
 - 11:55 Viveyuc a Tasa Cero (aprobado por Gabriel; comisión ya pagada, no se toca): migración fb91a5ebd149 (63b066a), OV-0123 y
   OV-0124 subtotal = total, IVA 0, partida legacy igual; probada sube/baja/sube en copia de producción y aplicada en Pruebas.
   El Excel de datos actuales ya da IVA% 0. Pendiente: pase a main (Gabriel).
+- 12:07 Pase a main (Gabriel): 06f3c80. Render aplicó fb91a5ebd149; OV-0123/0124 de Viveyuc en Tasa Cero en producción, comisión y saldos sin cambio.

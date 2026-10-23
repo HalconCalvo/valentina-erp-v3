@@ -68,6 +68,12 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 23/10 12:07 — PASE A MAIN hecho (Gabriel: 9b02cc4 → 06f3c80). Viveyuc en producción verificado (solo lectura)
+- Render aplicó fb91a5ebd149 a las 12:07; API 200.
+- OV-0123: Tasa Cero, subtotal $2,620,963.00, IVA $0; OV-0124: Tasa Cero, subtotal $157,551.00, IVA $0.
+- Partidas legacy con el total; comisión de la OV sin cambio ($67,783.53 / $4,074.59); saldos sin cambio ($1,069,968.75 /
+  $94,530.60); 10 filas de bitácora.
+
 ### 23/10 11:55 — HECHO en Pruebas: Viveyuc a Tasa Cero (migración fb91a5ebd149, commit 63b066a). Listo para main
 - **Antes:** el despliegue de 9b02cc4 (recetas / "+ Nueva") quedó en producción a las 11:50: pantalla y API con el aviso
   nuevo, migración sin cambio.

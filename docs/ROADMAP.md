@@ -289,6 +289,6 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
   el diálogo "Nueva". Probado en Pruebas; en producción 11:50.
 - Fuera de alcance: el clon con "Nueva" no copia la descripción comercial.
 
-## 17. Viveyuc a Tasa Cero (Gabriel, 23/10) — en Pruebas
+## 17. Viveyuc a Tasa Cero (Gabriel, 23/10) — en producción (06f3c80, 12:07)
 - 63b066a, migración fb91a5ebd149: OV-0123 y OV-0124 sin IVA (subtotal = total), comisión de la OV intacta (ya pagada).
-  Probada en la copia de producción (sube/baja/sube) y en Pruebas. Falta: pase a main (Gabriel).
+  Probada en la copia de producción (sube/baja/sube) y en Pruebas; producción verificada 12:07.
