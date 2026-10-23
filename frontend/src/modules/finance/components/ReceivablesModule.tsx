@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, FileText, Lock, Unlock, ChevronDown, BadgeDollarSign, FileSearch, ArrowUpDown, ArrowUp, ArrowDown, Layers, Clock, Wallet } from 'lucide-react';
-import { Card } from '@/components/ui/Card';
+import { CheckCircle2, FileText, Lock, Unlock, Layers, Wallet } from 'lucide-react';
+import { VHubCard } from '@/components/ui/VHubCard';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { SalesOrder, CustomerPayment } from '../../../types/sales';
 import { normalizeOrderStatus, STATUS_WAITING_ADVANCE } from '../utils/pendingInvoiceBuckets';
 import { ReceivableChargeModal } from './ReceivableChargeModal';
@@ -15,7 +17,6 @@ import { Button } from '@/components/ui/Button';
 // ---> 1. AGREGAMOS EL FILTRO 'ALL' <---
 type ReceivableFilter = 'ALL' | 'ADVANCES' | null;
 
-type SortField = 'FOLIO' | 'CLIENT' | 'DATE' | 'AMOUNT';
 /** OV y Facturación: open orders apart from closed ones (paid, zero balance) and cancelled ones; nothing is deleted. */
 type OrderGroup = 'OPEN' | 'CLOSED' | 'CANCELLED';
 const CLOSED_STATUSES = ['FINISHED'];
@@ -25,7 +26,6 @@ const ORDER_GROUPS: { key: OrderGroup; label: string }[] = [
     { key: 'CLOSED', label: 'Cerradas (pagadas, saldo cero)' },
     { key: 'CANCELLED', label: 'Canceladas' },
 ];
-type SortDirection = 'asc' | 'desc';
 
 // ---> NUEVO: Propiedad defaultFilter para el "Teletransporte" <---
 interface ReceivablesModuleProps {
@@ -36,6 +36,8 @@ interface ReceivablesModuleProps {
     financeReturnPath?: string;
     /** Incrementar para forzar cierre de sub-vista (vuelta al hub de 4 tarjetas). */
     resetHubSignal?: number;
+    /** "Regresar a …" of the list (guide v2 §2); by default the cards or, with onBackOverride, Tareas. */
+    backLabel?: string;
 }
 
 export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
@@ -44,6 +46,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     onBackOverride,
     financeReturnPath = '/treasury',
     resetHubSignal = 0,
+    backLabel,
 }) => {
     const navigate = useNavigate();
     const userRole = (localStorage.getItem('user_role') || '').toUpperCase().trim();
@@ -63,10 +66,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
 
     // Inicializamos el estado con la llave de teletransporte si nos la mandaron
     const [activeFilter, setActiveFilter] = useState<ReceivableFilter>(defaultFilter);
-    const [expandedOrderIds, setExpandedOrderIds] = useState<number[]>([]);
     
-    const [sortField, setSortField] = useState<SortField>('DATE'); 
-    const [sortDirection, setSortDirection] = useState<SortDirection>('asc'); 
     const [orderGroup, setOrderGroup] = useState<OrderGroup>('OPEN');
 
     const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
@@ -99,7 +99,6 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
         }
     }, [orders, isStatementModalOpen]);
 
-    const toggleOrder = (id: number) => setExpandedOrderIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
     const getClientName = useCallback((order: SalesOrder) => {
         const o = order as any;
@@ -144,263 +143,173 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     }, [orders]);
     const activeOrders = ordersByGroup[orderGroup];
 
-    const handleSort = (field: SortField) => {
-        if (sortField === field) {
-            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortField(field);
-            setSortDirection(field === 'AMOUNT' ? 'desc' : 'asc');
-        }
-    };
+    const listData = useMemo(
+        () => (activeFilter === 'ADVANCES' ? advancesForFirstInvoice : activeFilter === 'ALL' ? activeOrders : []),
+        [activeFilter, advancesForFirstInvoice, activeOrders],
+    );
 
-    // ---> 3. LÓGICA DE FILTRADO Y ORDENAMIENTO DINÁMICO <---
-    const filteredData = useMemo(() => {
-        let baseData =
-            activeFilter === 'ADVANCES' ? advancesForFirstInvoice : activeFilter === 'ALL' ? activeOrders : [];
-        let sortableItems = [...baseData];
-        
-        sortableItems.sort((a, b) => {
-            let comparison = 0;
-            switch (sortField) {
-                case 'FOLIO':
-                    comparison = (a.id || 0) - (b.id || 0);
-                    break;
-                case 'CLIENT':
-                    comparison = getClientName(a).localeCompare(getClientName(b));
-                    break;
-                case 'DATE':
-                    const dateA = new Date(a.created_at || a.valid_until || 0).getTime() || (a.id || 0);
-                    const dateB = new Date(b.created_at || b.valid_until || 0).getTime() || (b.id || 0);
-                    comparison = dateA - dateB;
-                    break;
-                case 'AMOUNT':
-                    comparison = (Number(a.total_price) || 0) - (Number(b.total_price) || 0);
-                    break;
-            }
-            return sortDirection === 'asc' ? comparison : -comparison;
-        });
-        
-        return sortableItems;
-    }, [activeFilter, advancesForFirstInvoice, activeOrders, sortField, sortDirection, getClientName]);
-
-    const SortableHeader = ({ field, label }: { field: SortField, label: string }) => {
-        const isActive = sortField === field;
-        return (
-            <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleSort(field)}
-                className={`gap-1 text-xs font-bold uppercase tracking-wider ${isActive ? 'text-indigo-700 bg-indigo-50' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
-            >
-                {label}
-                {isActive ? (
-                    sortDirection === 'asc' ? <ArrowUp size={14} className="text-indigo-600"/> : <ArrowDown size={14} className="text-indigo-600"/>
-                ) : (
-                    <ArrowUpDown size={14} className="text-slate-300 opacity-50"/>
-                )}
-            </Button>
-        );
-    };
+    const orderDate = (o: SalesOrder) => new Date(o.created_at || o.valid_until || 0).getTime() || (o.id || 0);
+    const openStatement = (order: SalesOrder) => { setSelectedOrderForStatement(order); setIsStatementModalOpen(true); };
 
     // Traductor visual de Estatus
     const getStatusBadge = (status: string) => {
         switch(status) {
-            case 'WAITING_ADVANCE': return <span className="text-[10px] text-amber-700 font-bold border px-1.5 py-0.5 rounded bg-amber-50 border-amber-200 uppercase tracking-wider">Esperando Anticipo</span>;
-            case 'IN_PRODUCTION': return <span className="text-[10px] text-blue-700 font-bold border px-1.5 py-0.5 rounded bg-blue-50 border-blue-200 uppercase tracking-wider">En Producción</span>;
-            case 'SOLD': return <span className="text-[10px] text-emerald-700 font-bold border px-1.5 py-0.5 rounded bg-emerald-50 border-emerald-200 uppercase tracking-wider">Vendido / En Proceso</span>;
-            case 'FINISHED': return <span className="text-[10px] text-purple-700 font-bold border px-1.5 py-0.5 rounded bg-purple-50 border-purple-200 uppercase tracking-wider">Pagada (saldo cero)</span>;
+            case 'WAITING_ADVANCE': return <span className="text-[10px] text-amber-700 font-bold border px-1.5 py-0.5 rounded bg-amber-50 border-amber-200">Esperando anticipo</span>;
+            case 'IN_PRODUCTION': return <span className="text-[10px] text-blue-700 font-bold border px-1.5 py-0.5 rounded bg-blue-50 border-blue-200">En producción</span>;
+            case 'SOLD': return <span className="text-[10px] text-emerald-700 font-bold border px-1.5 py-0.5 rounded bg-emerald-50 border-emerald-200">Vendida / en proceso</span>;
+            case 'FINISHED': return <span className="text-[10px] text-slate-700 font-bold border px-1.5 py-0.5 rounded bg-slate-50 border-slate-200">Pagada (saldo cero)</span>;
             case 'CANCELLED':
-            case 'CANCELLED_OV': return <span className="text-[10px] text-red-700 font-bold border px-1.5 py-0.5 rounded bg-red-50 border-red-200 uppercase tracking-wider">Cancelada</span>;
-            default: return <span className="text-[10px] text-slate-700 font-bold border px-1.5 py-0.5 rounded bg-slate-50 border-slate-200 uppercase tracking-wider">{status}</span>;
+            case 'CANCELLED_OV': return <span className="text-[10px] text-red-700 font-bold border px-1.5 py-0.5 rounded bg-red-50 border-red-200">Cancelada</span>;
+            default: return <span className="text-[10px] text-slate-700 font-bold border px-1.5 py-0.5 rounded bg-slate-50 border-slate-200">{status}</span>;
         }
     };
 
-    // Solo dejamos el sastre para la cajita del contador
-    const getCountSize = (count: number) => {
-        const len = count.toString().length;
-        if (len > 3) return 'text-xl';
-        if (len === 3) return 'text-2xl';
-        return 'text-3xl';
-    };
+    const orderColumns: VTableColumn<SalesOrder>[] = [
+        {
+            key: 'folio',
+            label: 'Folio OV',
+            sortable: true,
+            sortValue: (o) => o.id || 0,
+            render: (o) => {
+                const folio = `OV-${String(o.id ?? '').padStart(4, '0')}`;
+                return canViewRayosX ? (
+                    <Button variant="link" className="h-auto p-0 font-semibold text-indigo-600 hover:text-indigo-800"
+                        title="Ver Rayos X" onClick={() => openStatement(o)}>{folio}</Button>
+                ) : <span className="font-mono text-xs text-slate-600">{folio}</span>;
+            },
+        },
+        { key: 'client', label: 'Cliente', sortable: true, sortValue: (o) => getClientName(o),
+            render: (o) => <span className="text-slate-700">{getClientName(o)}</span> },
+        { key: 'project', label: 'Proyecto', sortable: true, sortValue: (o) => o.project_name || '',
+            render: (o) => o.project_name
+                ? <span className="text-slate-700 max-w-[220px] truncate block" title={o.project_name}>{o.project_name}</span>
+                : <span className="text-slate-300 text-xs">—</span> },
+        {
+            key: 'status',
+            label: 'Estado',
+            render: (o) => (
+                <div className="flex flex-wrap gap-1">
+                    {getStatusBadge(o.status)}
+                    {o.is_excel_managed && (
+                        <span title="Viene en el Excel de migración (sus diferencias se revisan al subirlo)" className="text-[10px] text-teal-700 font-bold border px-1.5 py-0.5 rounded bg-teal-50 border-teal-200">Excel</span>
+                    )}
+                </div>
+            ),
+        },
+        { key: 'date', label: 'Fecha', sortable: true, sortValue: orderDate,
+            render: (o) => <span className="text-slate-600 whitespace-nowrap">{formatDate(new Date(o.created_at || o.valid_until || new Date()))}</span> },
+        { key: 'total', label: 'Contrato (con IVA)', align: 'right', sortable: true, sortValue: (o) => Number(o.total_price) || 0,
+            render: (o) => <span className="block text-right tabular-nums font-bold text-slate-800">{formatMoney(Number(o.total_price) || 0)}</span> },
+        activeFilter === 'ADVANCES'
+            ? { key: 'advance', label: 'Anticipo solicitado', align: 'right', sortable: true,
+                sortValue: (o) => (Number(o.total_price) || 0) * ((Number(o.advance_percent) || 60) / 100),
+                render: (o) => (
+                    <span className="block text-right tabular-nums font-bold text-amber-700">
+                        {formatMoney((Number(o.total_price) || 0) * ((Number(o.advance_percent) || 60) / 100))}
+                        <span className="block text-[10px] font-medium text-slate-500">{o.advance_percent ?? 60}%</span>
+                    </span>
+                ) }
+            : { key: 'outstanding', label: 'Falta cobrar', align: 'right', sortable: true,
+                sortValue: (o) => Number((o as SalesOrder & { outstanding_balance?: number }).outstanding_balance) || 0,
+                render: (o) => <span className="block text-right tabular-nums font-bold text-amber-700">{formatMoney(Number((o as SalesOrder & { outstanding_balance?: number }).outstanding_balance) || 0)}</span> },
+        ...(canViewRayosX ? [{
+            key: 'action',
+            label: 'Acción',
+            align: 'right' as const,
+            render: (o: SalesOrder) => (
+                <div className="flex justify-end">
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => openStatement(o)}>
+                        Rayos X y facturar
+                    </Button>
+                </div>
+            ),
+        }] : []),
+    ];
 
     return (
         <div className="relative animate-fadeIn">
             {activeFilter === null ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in fade-in duration-300">
-                    
-                    <div className="w-full relative">
-                        <Card onClick={() => setActiveFilter('ADVANCES')} className="p-6 border-l-4 border-l-amber-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
-                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black group-hover:bg-amber-100 transition-colors ${getCountSize(advanceCardCount)}`}>
-                                {advanceCardCount}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div><h4 className="font-bold text-amber-800 flex items-center gap-2"><Lock size={18} className="text-amber-500"/> A. Anticipos por facturar</h4><p className="text-sm text-slate-500 mt-2 mb-4">Primer pago pendiente (sin CXC ADVANCE).</p></div>
-                                <div className="text-lg font-black text-amber-600 text-right tracking-tight">{formatMoney(advanceCardVal)}</div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative">
-                        <Card onClick={() => navigate('/finance/pending-invoices', { state: { returnTo: financeReturnPath, progressTab: 'AVANCES' } })} className="p-6 border-l-4 border-l-blue-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
-                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-blue-50 text-blue-700 border-r border-blue-100 font-black group-hover:bg-blue-100 transition-colors ${getCountSize(cardBCount)}`}>
-                                {cardBCount}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div><h4 className="font-bold text-blue-800 flex items-center gap-2"><Unlock size={18} className="text-blue-500"/> B. Avances por facturar</h4><p className="text-sm text-slate-500 mt-2 mb-4">Solo instancias CLOSED sin factura asociada.</p></div>
-                                <div className="text-lg font-black text-blue-600 text-right tracking-tight">{formatMoney(installmentsVal)}</div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative">
-                        <Card onClick={() => navigate('/finance/aging', { state: { returnTo: financeReturnPath, openSection: financeReturnPath === '/management' ? 'RECEIVABLES' : undefined } })} className="p-6 border-l-4 border-l-emerald-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
-                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black group-hover:bg-emerald-100 transition-colors ${getCountSize(pendingInvoices.length)}`}>
-                                {pendingInvoices.length}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div><h4 className="font-bold text-emerald-800 flex items-center gap-2"><FileText size={18} className="text-emerald-500"/> C. Antigüedad</h4><p className="text-sm text-slate-500 mt-2 mb-4">Toda la cartera viva consolidada.</p></div>
-                                <div className="text-lg font-black text-emerald-600 text-right tracking-tight">{formatMoney(agingVal)}</div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative">
-                        <Card onClick={() => navigate('/finance/cxc-report', { state: { returnTo: financeReturnPath } })} className="p-6 border-l-4 border-l-rose-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1">
-                            <div className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-rose-50 text-rose-700 border-r border-rose-100 font-black group-hover:bg-rose-100 transition-colors ${getCountSize(pendingInvoices.length)}`}>
-                                {pendingInvoices.length}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between">
-                                <div>
-                                    <h4 className="font-bold text-rose-800 flex items-center gap-2">
-                                        <Wallet size={18} className="text-rose-500" /> E. Cobranza
-                                    </h4>
-                                    <p className="text-sm text-slate-500 mt-2 mb-4">Cuentas por cobrar pendientes</p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
+                    <VHubCard
+                        label="A. Anticipos por facturar"
+                        title="Anticipos"
+                        footer={`${formatMoney(advanceCardVal)} · primer pago pendiente`}
+                        icon={Lock}
+                        side={advanceCardCount}
+                        tone="amber"
+                        onClick={() => setActiveFilter('ADVANCES')}
+                    />
+                    <VHubCard
+                        label="B. Avances por facturar"
+                        title="Avances"
+                        footer={`${formatMoney(installmentsVal)} · casas firmadas sin factura`}
+                        icon={Unlock}
+                        side={cardBCount}
+                        tone="blue"
+                        onClick={() => navigate('/finance/pending-invoices', { state: { returnTo: financeReturnPath, progressTab: 'AVANCES' } })}
+                    />
+                    <VHubCard
+                        label="C. Antigüedad"
+                        title="Antigüedad"
+                        footer={`${formatMoney(agingVal)} · cartera viva`}
+                        icon={FileText}
+                        side={pendingInvoices.length}
+                        tone="emerald"
+                        onClick={() => navigate('/finance/aging', { state: { returnTo: financeReturnPath, openSection: financeReturnPath === '/management' ? 'RECEIVABLES' : undefined } })}
+                    />
+                    <VHubCard
+                        label="E. Cobranza"
+                        title="Cobranza"
+                        footer="Cuentas por cobrar pendientes"
+                        icon={Wallet}
+                        side={pendingInvoices.length}
+                        tone="red"
+                        onClick={() => navigate('/finance/cxc-report', { state: { returnTo: financeReturnPath } })}
+                    />
                 </div>
             ) : (
                 <div className="animate-in fade-in duration-300 space-y-6">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
-                        <div>
-                            <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 tracking-tight">
-                                {activeFilter === 'ADVANCES' ? <Lock className="text-amber-500"/> : <Layers className="text-indigo-500"/>} 
-                                {activeFilter === 'ADVANCES' ? 'Bandeja de Anticipos' : 'Archivo Maestro de Cuentas por Cobrar'}
-                            </h3>
-                            <p className="text-slate-500 mt-1 text-sm font-medium">Ejecución y detalle operativo.</p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                if (onBackOverride) onBackOverride();
-                                else setActiveFilter(null);
-                            }}
-                        >
-                            <ArrowLeft size={16} /> {onBackOverride ? 'Regresar a Tareas' : 'Regresar a Tarjetas'}
-                        </Button>
-                    </div>
+                    <VPageHeader
+                        icon={activeFilter === 'ADVANCES' ? Lock : Layers}
+                        title={activeFilter === 'ADVANCES' ? 'Anticipos por facturar' : 'OV y facturación'}
+                        subtitle={activeFilter === 'ADVANCES'
+                            ? 'OVs que esperan la factura de su primer pago.'
+                            : 'Órdenes de venta con su contrato y lo que falta cobrar.'}
+                        onRefresh={() => void refreshReceivables()}
+                        onBack={() => {
+                            if (onBackOverride) onBackOverride();
+                            else setActiveFilter(null);
+                        }}
+                        backLabel={backLabel ?? (onBackOverride ? 'Regresar a Tareas' : 'Regresar a Cuentas por cobrar')}
+                    />
 
-                    <div className="space-y-4">
-                        {activeFilter === 'ALL' && (
-                            <div className="flex flex-wrap gap-2" role="tablist">
-                                {ORDER_GROUPS.map(({ key, label }) => (
-                                    <Button
-                                        key={key}
-                                        type="button"
-                                        role="tab"
-                                        aria-selected={orderGroup === key}
-                                        variant={orderGroup === key ? 'default' : 'outline'}
-                                        onClick={() => setOrderGroup(key)}
-                                        className="font-bold"
-                                    >
-                                        {label} ({ordersByGroup[key].length})
-                                    </Button>
-                                ))}
-                            </div>
-                        )}
-                        {filteredData.length === 0 ? (
-                            <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center"><CheckCircle2 size={48} className="text-slate-300 mb-4 opacity-50"/><p>Bandeja limpia o sin registros.</p></div>
-                        ) : (
-                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                                <div className="bg-slate-50 border-b border-slate-200 p-2 flex justify-between items-center px-4">
-                                    <div className="flex items-center gap-2 md:gap-8 overflow-x-auto">
-                                        <SortableHeader field="FOLIO" label="Folio OV" />
-                                        <SortableHeader field="CLIENT" label="Cliente / Proyecto" />
-                                        <SortableHeader field="DATE" label="Antigüedad (Fecha)" />
-                                    </div>
-                                    <div className="hidden md:block">
-                                        <SortableHeader field="AMOUNT" label="Monto Contrato" />
-                                    </div>
-                                </div>
-                                
-                                <div className="divide-y divide-slate-100">
-                                    {filteredData.map(order => {
-                                        const isExpanded = expandedOrderIds.includes(order.id!);
-                                        const orderDate = new Date(order.created_at || order.valid_until || new Date());
-                                        const dateString = formatDate(orderDate);
-                                        
-                                        return (
-                                            <div key={order.id} className="group">
-                                                <div onClick={() => toggleOrder(order.id!)} className="p-4 cursor-pointer hover:bg-indigo-50/30 flex items-center justify-between transition-colors">
-                                                    <div className="flex items-center gap-4">
-                                                        <ChevronDown size={20} className={`text-slate-400 transform transition-transform duration-300 ${isExpanded ? 'rotate-180 text-indigo-500' : 'group-hover:text-indigo-400'}`} />
-                                                        <div>
-                                                            <div className="flex items-baseline gap-2 flex-wrap">
-                                                                <h3 className="font-black text-slate-800 text-lg">OV-{order.id?.toString().padStart(4, '0')}</h3>
-                                                                <span className="text-slate-500 font-medium">| {getClientName(order)}</span>
-                                                                {order.project_name && (
-                                                                    <span className="text-slate-600 font-semibold">| {order.project_name}</span>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex items-center gap-3 mt-1">
-                                                                {getStatusBadge(order.status)}
-                                                                {order.is_excel_managed && (
-                                                                    <span title="Viene en el Excel de migración (sus diferencias se revisan al subirlo)" className="text-[10px] text-teal-700 font-bold border px-1.5 py-0.5 rounded bg-teal-50 border-teal-200 uppercase tracking-wider">Excel</span>
-                                                                )}
-                                                                <span className="text-xs text-slate-400 font-medium flex items-center gap-1"><Clock size={12}/> {dateString}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right hidden md:block">
-                                                        <p className="font-black text-slate-700 text-lg">{formatMoney(Number(order.total_price) || 0)}</p>
-                                                    </div>
-                                                </div>
-                                                
-                                                {isExpanded && (
-                                                    <div className="p-6 border-t border-indigo-100 bg-indigo-50/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-in slide-in-from-top-2 duration-200">
-                                                        <div className="flex gap-8">
-                                                            <div>
-                                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Valor Contrato</p>
-                                                                <p className="font-black text-slate-800 text-lg">{formatMoney(Number(order.total_price) || 0)}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                                                    {activeFilter === 'ADVANCES' ? `Anticipo Solicitado (${order.advance_percent}%)` : 'Falta cobrar del contrato'}
-                                                                </p>
-                                                                <p className={`font-black text-lg ${activeFilter === 'ADVANCES' ? 'text-amber-600' : 'text-indigo-600'}`}>
-                                                                    {activeFilter === 'ADVANCES' 
-                                                                        ? formatMoney((Number(order.total_price) || 0) * ((Number(order.advance_percent) || 60) / 100))
-                                                                        : formatMoney(Number(order.outstanding_balance) || 0)
-                                                                    }
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        {canViewRayosX && (
-                                                            <Button onClick={(e) => { e.stopPropagation(); setSelectedOrderForStatement(order); setIsStatementModalOpen(true); }}>
-                                                                <FileSearch size={18} /> Ver Rayos X y Facturar
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    {activeFilter === 'ALL' && (
+                        <div className="flex flex-wrap gap-2" role="tablist">
+                            {ORDER_GROUPS.map(({ key, label }) => (
+                                <Button
+                                    key={key}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={orderGroup === key}
+                                    variant="outline"
+                                    onClick={() => setOrderGroup(key)}
+                                    className={orderGroup === key ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-700' : 'text-slate-600'}
+                                >
+                                    {label} ({ordersByGroup[key].length})
+                                </Button>
+                            ))}
+                        </div>
+                    )}
+
+                    <VTable
+                        columns={orderColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                        data={listData as unknown as Record<string, unknown>[]}
+                        emptyState={{ icon: <CheckCircle2 />, title: 'Bandeja limpia: no hay órdenes en esta lista.' }}
+                        headerStyle="report"
+                        defaultSortKey="date"
+                        defaultSortDirection="asc"
+                        className="shadow-sm"
+                    />
                 </div>
             )}
 

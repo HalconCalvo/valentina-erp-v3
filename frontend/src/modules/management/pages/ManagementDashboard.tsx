@@ -525,6 +525,7 @@ const ManagementDashboard: React.FC = () => {
                     financeReturnPath="/management"
                     defaultFilter="ALL"
                     onBackOverride={() => setRoot(null)}
+                    backLabel="Regresar a Gerencia"
                 />
             )}
 
