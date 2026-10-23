@@ -456,7 +456,7 @@ export const VersionRecipeForm = ({
 
       {isReadOnly && (
           <div className="mb-4 bg-slate-100 border border-slate-300 text-slate-600 px-4 py-2 rounded text-xs flex items-center gap-2">
-              <Lock size={14} /> <span>Receta en modo <b>Solo Lectura</b>. Cambia a Borrador para editar.</span>
+              <Lock size={14} /> <span>Receta en modo <b>Solo Lectura</b>. {locked ? 'Está en uso: usa “Nueva” para hacer una versión editable.' : 'Cambia a Borrador para editar.'}</span>
           </div>
       )}
       
