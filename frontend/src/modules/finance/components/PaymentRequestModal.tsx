@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, CreditCard, Hash, FileText, Landmark, ShieldCheck, ShieldAlert } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Calendar, CreditCard, Hash, FileText, Landmark, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
@@ -9,6 +8,7 @@ import { treasuryService } from '../../../api/treasury-service';
 import { BankAccount } from '../../../types/treasury';
 import { formatDate, formatMoney } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
+import { ModalFooter } from '@/components/ui/ModalFooter';
 
 interface PaymentRequestModalProps {
     invoice?: PendingInvoice; 
@@ -143,25 +143,23 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
     const displayBalance = invoice ? invoice.outstanding_balance : 0;
 
     return (
-        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-                    <div>
-                        {/* ---> TÍTULO DINÁMICO <--- */}
-                        <h3 className="text-lg font-black text-slate-800">
-                            {existingRequest 
-                                ? 'Editar Solicitud' 
-                                : (isChecker ? 'Ejecutar Pago Directo' : 'Solicitar Autorización')}
-                        </h3>
-                        <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">
-                            Factura: {displayInvoiceNumber}
-                        </p>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={onClose} title="Cerrar" aria-label="Cerrar" className="rounded-full text-slate-400 hover:text-slate-600">
-                        <X size={20} />
-                    </Button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <Modal
+            isOpen
+            onClose={onClose}
+            size="sm"
+            title={existingRequest ? 'Editar solicitud' : (isChecker ? 'Pago directo' : 'Solicitar autorización')}
+            subtitle={`Factura ${displayInvoiceNumber}`}
+            footer={(
+                <ModalFooter
+                    onCancel={onClose}
+                    form="payment-request"
+                    confirmLabel={existingRequest ? 'Actualizar solicitud' : (isChecker ? 'Efectuar pago' : 'Solicitar autorización')}
+                    busy={loading}
+                    tone={isChecker && !existingRequest ? 'success' : 'primary'}
+                />
+            )}
+        >
+                <form id="payment-request" onSubmit={handleSubmit} className="space-y-5">
                     {invoice && (invoice.po_folio && invoice.po_authorizer_name ? (
                         <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
                             <ShieldCheck size={14} />
@@ -174,14 +172,14 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                         </p>
                     ))}
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Monto a Pagar</label>
+                        <label className="block text-xs font-bold text-slate-500 mb-2">Monto a pagar</label>
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-2xl text-slate-800 pointer-events-none">
                                 $
                             </span>
                             <Input
                                 type="text"
-                                className="w-full pl-10 pr-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 font-black text-2xl text-slate-800 transition-all"
+                                className="w-full pl-10 pr-4 py-2 font-black text-2xl text-slate-800 tabular-nums"
                                 value={displayAmount}
                                 onChange={handleAmountChange}
                                 onBlur={handleBlur}
@@ -190,14 +188,14 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                         </div>
                         {!existingRequest && (
                             <p className="text-xs text-right mt-2 font-bold text-slate-400">
-                                Saldo de la factura: <span className="text-indigo-600">${formatInitialAmount(displayBalance)}</span>
+                                Saldo de la factura: <span className="text-slate-700 tabular-nums">${formatInitialAmount(displayBalance)}</span>
                             </p>
                         )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Fecha de Pago</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Fecha de pago</label>
                             <div className="relative">
                                 <Calendar size={16} className="absolute left-3 top-2.5 text-slate-400" />
                                 <Input
@@ -228,7 +226,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                     <div>
                         {/* ---> CAMPO DE CUENTA DINÁMICO <--- */}
                         <label className="block text-xs font-bold text-slate-500 mb-1">
-                            {isChecker ? 'Cuenta Bancaria de Origen' : 'Cuenta Sugerida (Opcional)'}
+                            {isChecker ? 'Cuenta bancaria de origen' : 'Cuenta sugerida (opcional)'}
                         </label>
                         <div className="relative">
                             <Landmark size={16} className="absolute left-3 top-2.5 text-slate-400" />
@@ -246,7 +244,7 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Referencia / Folio</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Referencia o folio</label>
                             <div className="relative">
                                 <Hash size={16} className="absolute left-3 top-2.5 text-slate-400" />
                                 <Input 
@@ -271,29 +269,6 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
                         </div>
                     </div>
 
-                    <div className="pt-4 flex gap-3 border-t border-slate-100 mt-4">
-                        <Button variant="secondary" onClick={onClose} type="button" className="flex-1 font-bold">
-                            Cancelar
-                        </Button>
-                        <Button 
-                            type="submit" 
-                            className={`flex-1 text-white font-bold shadow-md transform transition hover:scale-105 ${
-                                isChecker && !existingRequest
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500'
-                                    : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
-                            }`} 
-                            disabled={loading}
-                        >
-                            {/* ---> BOTÓN DINÁMICO <--- */}
-                            {loading 
-                                ? 'Procesando...' 
-                                : (existingRequest 
-                                    ? 'Actualizar Solicitud' 
-                                    : (isChecker ? 'Efectuar Pago Directo' : 'Solicitar Autorización')
-                                  )
-                            }
-                        </Button>
-                    </div>
                 </form>
             </Modal>
     );

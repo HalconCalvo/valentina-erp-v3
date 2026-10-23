@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { PackageCheck, X, FileMinus, Receipt } from 'lucide-react';
+import { PackageCheck, FileMinus, Receipt } from 'lucide-react';
 import { PendingInvoice } from '../../../types/finance';
 import client from '../../../api/axios-client';
 import { Input } from '@/components/ui/Input';
@@ -266,7 +266,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
             label: 'SKU',
             width: '8rem',
             render: (item) => (
-                <span className="font-black text-indigo-600 text-[11px] uppercase">{String(item.sku || 'N/A')}</span>
+                <span className="font-mono text-xs text-slate-600">{String(item.sku || '—')}</span>
             ),
         },
         {
@@ -286,7 +286,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
 
                 if (!showInlineNotes) {
                     return (
-                        <span className="font-bold text-slate-700 text-xs uppercase">
+                        <span className="font-medium text-slate-700">
                             {label}
                         </span>
                     );
@@ -294,7 +294,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
 
                 return (
                     <div className="max-w-lg pr-2">
-                        <span className="block font-bold text-slate-700 text-xs uppercase">
+                        <span className="block font-medium text-slate-700">
                             {label}
                         </span>
                         <p className="mt-1 text-[10px] font-medium normal-case leading-snug text-slate-500 whitespace-pre-wrap break-words">
@@ -307,20 +307,22 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
         {
             key: 'quantity',
             label: 'Cant.',
+            align: 'right',
             render: (item) => (
-                <span className="block text-center text-xs font-black text-slate-600">
+                <span className="block text-right tabular-nums text-slate-700">
                     {String(item.qty || item.quantity || 1)}
                 </span>
             ),
         },
         {
             key: 'unit_price',
-            label: 'P. Unit',
+            label: 'P. unit.',
             width: '8rem',
+            align: 'right',
             render: (item) => {
                 const price = Number(item.price || item.unit_price || item.expected_cost || 0);
                 return (
-                    <span className="block text-center text-xs font-bold text-slate-400">
+                    <span className="block text-right tabular-nums text-slate-600">
                         {formatMoney(price)}
                     </span>
                 );
@@ -329,21 +331,20 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
         {
             key: 'project_name',
             label: 'Proyecto',
-            render: (item) => (
-                <span className="block text-right text-[10px] font-black text-rose-600 uppercase">
-                    {String(item.project_name || 'Sin OV')}
-                </span>
-            ),
+            render: (item) => item.project_name
+                ? <span className="text-slate-700">{String(item.project_name)}</span>
+                : <span className="text-slate-400 text-xs">Sin OV</span>,
         },
         {
             key: 'importe',
-            label: 'Importe',
+            label: 'Importe (sin IVA)',
             width: '10rem',
+            align: 'right',
             render: (item) => {
                 const qty = Number(item.qty || item.quantity || 1);
                 const price = Number(item.price || item.unit_price || item.expected_cost || 0);
                 return (
-                    <span className="block text-right text-xs font-black text-slate-800">
+                    <span className="block text-right tabular-nums font-bold text-slate-800">
                         {formatMoney((qty * price))}
                     </span>
                 );
@@ -357,45 +358,47 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
     );
 
     return (
-        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden border-t-8 border-t-emerald-500 flex flex-col max-h-[90vh]">
-                
-                {/* CABECERA CLONADA */}
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-50/30">
-                    <div className="flex items-center gap-5">
-                        <div className="p-3 rounded-2xl shadow-inner bg-emerald-100 text-emerald-600">
-                            <PackageCheck size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-black text-slate-800 uppercase leading-none">{invoice.provider_name}</h3>
-                            <p className="text-[10px] font-black uppercase text-emerald-700 mt-1 tracking-widest leading-none">
-                                FACTURA: {invoice.invoice_number || '—'}
-                            </p>
-                            {invoice.po_folio && (
-                                <p className="text-[9px] font-black uppercase text-slate-400 mt-0.5 tracking-widest leading-none">
-                                    OC: {invoice.po_folio}
-                                </p>
-                            )}
-                            {/* AQUÍ ESTÁ EL CAMBIO: Fecha de tamaño sm pero con su color original */}
-                            <p className="text-sm font-black uppercase text-slate-500 mt-1.5 tracking-tight leading-none">
-                                VENCIMIENTO: {invoice.due_date ? formatDate(invoice.due_date) : 'INMEDIATO'}
-                            </p>
-                            {(invoice as any).authorized_by && (
-                                <p className="text-[9px] font-black uppercase text-indigo-600 mt-1 tracking-widest leading-none flex items-center gap-1">
-                                    ✅ AUTORIZÓ: {(invoice as any).authorized_by}
-                                </p>
-                            )}
-                        </div>
+        <Modal
+            isOpen
+            onClose={onClose}
+            size="3xl"
+            title={invoice.provider_name}
+            subtitle={[
+                `Factura ${invoice.invoice_number || '—'}`,
+                invoice.po_folio ? `OC ${invoice.po_folio}` : null,
+                `vence ${invoice.due_date ? formatDate(invoice.due_date) : 'inmediato'}`,
+                (invoice as any).authorized_by ? `autorizó ${(invoice as any).authorized_by}` : null,
+            ].filter(Boolean).join(' · ')}
+            headerActions={<RecordHistoryButton tableName="purchase_invoices" recordId={invoice.id} label={`Factura ${invoice.invoice_number || invoice.id}`} />}
+            footer={(
+                <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 pt-4 mt-2 border-t border-slate-100">
+                    <div className="flex gap-3">
+                        <Button variant="outline" onClick={onClose}>Cerrar</Button>
+                        {canRegisterNC && (
+                            <Button variant="outline" onClick={() => setShowNCForm(v => !v)}>
+                                <FileMinus size={16} /> {showNCForm ? 'Ocultar NC' : 'Registrar NC'}
+                            </Button>
+                        )}
                     </div>
-                    <div className="flex items-center gap-2">
-                        <RecordHistoryButton tableName="purchase_invoices" recordId={invoice.id} label={`Factura ${invoice.invoice_number || invoice.id}`} />
-                        <Button variant="outline" size="icon" onClick={onClose} title="Cerrar" aria-label="Cerrar" className="rounded-full text-slate-400 hover:text-slate-700">
-                            <X size={20} />
-                        </Button>
+                    <div className="w-72 space-y-1">
+                        <div className="flex justify-between items-center text-slate-500">
+                            <span className="text-xs font-bold">Subtotal</span>
+                            <span className="text-sm font-bold tabular-nums">{formatMoney(displaySubtotal)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2">
+                            <span className="text-xs font-bold">IVA (16%)</span>
+                            <span className="text-sm font-bold tabular-nums">{formatMoney(displayIva)}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1">
+                            <span className="text-xs font-bold text-slate-600">{enCapturaNC ? 'Nuevo saldo (tras NC)' : 'Saldo a pagar'}</span>
+                            <span className={`text-2xl font-black tabular-nums ${enCapturaNC ? (ncExcede ? 'text-red-600' : 'text-emerald-700') : 'text-slate-800'}`}>{formatMoney(saldoMostrado)}</span>
+                        </div>
                     </div>
                 </div>
-
+            )}
+        >
                 {/* CUERPO - LA TABLA CLONADA */}
-                <div className="overflow-y-auto flex-1 bg-white">
+                <div>
                     {isLoading ? (
                         <div className="p-6 space-y-3 animate-pulse" aria-label="Sincronizando desglose de la orden...">
                             {Array.from({ length: 5 }).map((_, i) => (
@@ -410,28 +413,26 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                 description={`${invoice.invoice_number} es un gasto directo en cuentas por pagar. No hay partidas de material ni recepción de almacén; use el resumen inferior para subtotal, IVA y saldo a pagar.`}
                             />
                         ) : (
-                            <div className="text-center py-20 bg-slate-50">
-                                <PackageCheck className="mx-auto text-slate-200 mb-4" size={48} />
-                                <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">El detalle de esta orden no está disponible temporalmente.</p>
-                            </div>
+                            <VEmptyState icon={<PackageCheck />} title="El detalle de esta orden no está disponible por ahora." />
                         )
                     ) : (
                         <VTable
                             columns={itemColumns}
                             data={tableItems}
-                            className="border-0 rounded-none shadow-none [&_td]:align-top"
+                            headerStyle="report"
+                            className="[&_td]:align-top"
                         />
                     )}
                 </div>
 
                 {showNCForm && canRegisterNC && (
-                    <div className="px-8 py-5 bg-amber-50 border-t-2 border-amber-200">
-                        <h4 className="text-sm font-black uppercase text-amber-800 mb-3 flex items-center gap-2">
-                            <FileMinus size={16} /> Registrar Nota de Crédito
+                    <div className="mt-4 p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
+                        <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <FileMinus size={16} className="text-indigo-600" /> Registrar nota de crédito
                         </h4>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500">Tipo</label>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Tipo</label>
                                 <SearchableSelect
                                     items={NC_TYPE_OPTIONS}
                                     value={ncType}
@@ -442,18 +443,18 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500">Folio de la NC *</label>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Folio de la NC *</label>
                                 <Input value={ncFolio} onChange={e => setNcFolio(e.target.value)} className="text-sm font-bold" placeholder="Folio fiscal" />
                             </div>
                             {ncType !== 'RETURN' && (
                                 <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500">Monto total (c/IVA) *</label>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Monto total (c/IVA) *</label>
                                     <Input type="number" value={ncAmount} onChange={e => setNcAmount(e.target.value)} className={`text-sm font-bold ${ncExcede ? 'border-red-400 bg-red-50' : ''}`} placeholder="0.00" />
                                 </div>
                             )}
                             {ncType === 'RETURN' && (
-                                <div className="col-span-2 border border-amber-300 rounded p-3 bg-white">
-                                    <label className="text-[10px] font-black uppercase text-slate-500 block mb-2">Materiales a devolver (máx = recibido)</label>
+                                <div className="col-span-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2">Materiales a devolver (máx = recibido)</label>
                                     {items.length === 0 && (
                                         <p className="text-xs text-slate-400">Esta factura no tiene materiales con detalle para devolver.</p>
                                     )}
@@ -462,7 +463,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                         const precio = Number(it.unit_price) || 0;
                                         return (
                                             <div key={idx} className="flex items-center gap-2 py-1 border-b border-slate-50 last:border-0">
-                                                <span className="flex-1 text-xs font-bold text-slate-600 uppercase">{it.description || it.name || 'Material'}</span>
+                                                <span className="flex-1 text-xs font-bold text-slate-600">{it.description || it.name || 'Material'}</span>
                                                 <span className="text-[10px] text-slate-400">recibido: {recibido}</span>
                                                 <span className="text-[10px] text-slate-400">{formatMoney(precio)}</span>
                                                 <Input
@@ -479,13 +480,13 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                             </div>
                                         );
                                     })}
-                                    <div className="text-right text-sm font-black text-amber-800 mt-2">
+                                    <div className="text-right text-sm font-black text-slate-800 tabular-nums mt-2">
                                         Monto NC (calculado): {formatMoney(returnTotal)}
                                     </div>
                                 </div>
                             )}
                             <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500">Tasa IVA</label>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Tasa IVA</label>
                                 <SearchableSelect
                                     items={TAX_RATE_OPTIONS}
                                     value={String(ncTaxRate)}
@@ -496,13 +497,13 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                                 />
                             </div>
                             <div className="col-span-2">
-                                <label className="text-[10px] font-black uppercase text-slate-500">Motivo</label>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Motivo</label>
                                 <Input value={ncReason} onChange={e => setNcReason(e.target.value)} className="text-sm" placeholder="Ej. Ajuste de precio pactado" />
                             </div>
                         </div>
                         <div className="flex justify-between items-center mt-4">
                             <div className="text-sm font-black">
-                                {ncExcede && <span className="text-red-600 text-[10px] uppercase font-black">⚠️ Excede el saldo pendiente</span>}
+                                {ncExcede && <span className="text-red-600 text-xs font-bold">Excede el saldo pendiente</span>}
                             </div>
                             <div className="flex gap-2">
                                 <Button variant="outline" onClick={() => setShowNCForm(false)}>Cancelar</Button>
@@ -513,34 +514,6 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({ invoice,
                         </div>
                     </div>
                 )}
-
-                {/* PIE - TOTALES CLONADOS */}
-                <div className="p-8 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
-                    <div className="flex gap-4">
-                        <Button variant="outline" onClick={onClose}>
-                            Cerrar Vista
-                        </Button>
-                        {canRegisterNC && (
-                            <Button variant="outline" onClick={() => setShowNCForm(v => !v)}>
-                                <FileMinus size={16} /> {showNCForm ? 'Ocultar NC' : 'Registrar NC'}
-                            </Button>
-                        )}
-                    </div>
-                    <div className="w-80 space-y-1 pr-14">
-                        <div className="flex justify-between items-center text-slate-500">
-                            <span className="text-[10px] font-black uppercase">Subtotal</span>
-                            <span className="text-sm font-bold">{formatMoney(displaySubtotal)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-2">
-                            <span className="text-[10px] font-black uppercase">IVA (16%)</span>
-                            <span className="text-sm font-bold">{formatMoney(displayIva)}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2">
-                            <span className="text-[11px] font-black text-emerald-600 uppercase">{enCapturaNC ? 'Nuevo saldo (tras NC)' : 'Saldo a pagar'}</span>
-                            <span className={`text-3xl font-black ${enCapturaNC ? (ncExcede ? 'text-red-600' : 'text-emerald-600') : 'text-slate-900'}`}>{formatMoney(saldoMostrado)}</span>
-                        </div>
-                    </div>
-                </div>
 
             </Modal>
     );
