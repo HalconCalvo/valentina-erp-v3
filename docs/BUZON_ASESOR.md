@@ -68,7 +68,7 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
-### 23/10 11:58 — HECHO en Pruebas: Viveyuc a Tasa Cero (migración fb91a5ebd149, commit 63b066a). Listo para main
+### 23/10 11:55 — HECHO en Pruebas: Viveyuc a Tasa Cero (migración fb91a5ebd149, commit 63b066a). Listo para main
 - **Antes:** el despliegue de 9b02cc4 (recetas / "+ Nueva") quedó en producción a las 11:50: pantalla y API con el aviso
   nuevo, migración sin cambio.
 - **Migración** con bitácora (10 filas, `change_id viveyuc-fb91a5ebd149`), guarda por valor esperado y bajada desde la
@@ -85,7 +85,7 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - En Valentina Pruebas: aplicada a las 11:54, cifras iguales a la tabla.
   - El Excel "datos actuales", generado con el código de exportación sobre la copia, ya da IVA% 0 en OV-0123 y OV-0124.
   - Tests del importador y de recetas: 26 pasan. Una sola cabeza de migraciones.
-- **Pase a main:** `! git push origin <commit del buzón>:main` (el último commit de `pruebas`, que incluye 63b066a). Render
+- **Pase a main:** `! git push origin <commit del buzón>:main` (último commit de `pruebas`; incluye 63b066a). Render
   aplica la migración al desplegar. Si hay que regresar: bajar fb91a5ebd149, que restaura desde la bitácora.
 - **Karina:** en OVs nuevas de Viveyuc, IVA% = 0 (no EXENTO).
 
