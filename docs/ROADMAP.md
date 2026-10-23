@@ -288,3 +288,7 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - fe05734 / b02c875 / eae175e: aviso y 409 con el documento (COT/OV), receta en uso bloqueada al abrir, Monitor ya no tapa
   el diálogo "Nueva". Probado en Pruebas; en producción 11:50.
 - Fuera de alcance: el clon con "Nueva" no copia la descripción comercial.
+
+## 17. Viveyuc a Tasa Cero (Gabriel, 23/10) — en Pruebas
+- 63b066a, migración fb91a5ebd149: OV-0123 y OV-0124 sin IVA (subtotal = total), comisión de la OV intacta (ya pagada).
+  Probada en la copia de producción (sube/baja/sube) y en Pruebas. Falta: pase a main (Gabriel).

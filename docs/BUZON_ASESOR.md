@@ -68,6 +68,39 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 23/10 11:58 — HECHO en Pruebas: Viveyuc a Tasa Cero (migración fb91a5ebd149, commit 63b066a). Listo para main
+- **Antes:** el despliegue de 9b02cc4 (recetas / "+ Nueva") quedó en producción a las 11:50: pantalla y API con el aviso
+  nuevo, migración sin cambio.
+- **Migración** con bitácora (10 filas, `change_id viveyuc-fb91a5ebd149`), guarda por valor esperado y bajada desde la
+  bitácora.
+- **Cifras antes → después:**
+| OV | Total c/IVA | Tasa | Subtotal | IVA | Partida "Contrato legacy" | Comisión de la OV | Saldo |
+|---|---|---|---|---|---|---|---|
+| OV-0123 | $2,620,963.00 = | 16 % → Tasa Cero | $2,259,450.86 → $2,620,963.00 | $361,512.14 → $0 | $2,259,450.86 → $2,620,963.00 | $67,783.53 = | $1,069,968.75 = |
+| OV-0124 | $157,551.00 = | 16 % → Tasa Cero | $135,819.83 → $157,551.00 | $21,731.17 → $0 | $135,819.83 → $157,551.00 | $4,074.59 = | $94,530.60 = |
+- **Comisiones:** en Valentina no existe ninguna comisión registrada para esas OVs (0 renglones). La comisión de la OV se
+  queda igual y no se genera ninguna diferencia ni comisión nueva. Las facturas (CxC) no llevan tasa, así que no cambian.
+- **Pruebas:**
+  - En la copia de producción: sube, baja y vuelve a subir, y las cifras regresan exactas.
+  - En Valentina Pruebas: aplicada a las 11:54, cifras iguales a la tabla.
+  - El Excel "datos actuales", generado con el código de exportación sobre la copia, ya da IVA% 0 en OV-0123 y OV-0124.
+  - Tests del importador y de recetas: 26 pasan. Una sola cabeza de migraciones.
+- **Pase a main:** `! git push origin <commit del buzón>:main` (el último commit de `pruebas`, que incluye 63b066a). Render
+  aplica la migración al desplegar. Si hay que regresar: bajar fb91a5ebd149, que restaura desde la bitácora.
+- **Karina:** en OVs nuevas de Viveyuc, IVA% = 0 (no EXENTO).
+
+<details><summary>Instrucción original</summary>
+
+#### 23/10 11:52 — Viveyuc: corrección de IVA APROBADA por Gabriel ("aprobado y la comisión ya se pagó")
+1. Migración con bitácora y bajada (como ZENARA): OV-0123 y OV-0124 de PROMOTORA VIVEYUC a Tasa Cero (subtotal = total, IVA 0),
+   con sus CxC/facturas como corresponda. El total con IVA y lo cobrado NO cambian.
+2. COMISIONES: Gabriel ya las pagó. NO cambiar ninguna comisión existente de esas OVs (quedan como están, "pagadas fuera de
+   Valentina", con su monto actual). No generar diferencias ni comisiones nuevas por los $11,497.30.
+3. Pruebas primero, verificar cifras antes/después, reportar en Hechas y decir el commit para el pase a main (lo hace Gabriel
+   con "! git push"). Antes: vigilar que el deploy de 9b02cc4 (receta / "+ Nueva") llegó a producción y confirmarlo.
+
+</details>
+
 ### 23/10 11:44 — Viveyuc IVA: revisado (solo lectura). La exportación está bien; el DATO está en 16 %. Corrección PROPUESTA, sin aplicar: espera aprobación
 **1. Dónde vive la tasa y qué tiene Viveyuc.**
 - La tasa vive en la OV (`sales_orders.tax_rate_id` + `tax_amount`). Las facturas (CxC) y el cliente no tienen tasa.

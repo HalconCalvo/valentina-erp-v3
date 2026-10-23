@@ -5440,3 +5440,6 @@ VIERNES 23/10/2026
   con bitácora, sin aplicar: espera a Gabriel. El importador ignora IVA% en OVs existentes; en nuevas "EXENTO" da error
   (no hay tasa "Exento"), usar 0.
 - 11:50 Pase a main (Gabriel): 9b02cc4 con el arreglo de recetas; producción sirve el aviso nuevo, migración sin cambio (064478e54c17).
+- 11:58 Viveyuc a Tasa Cero (aprobado por Gabriel; comisión ya pagada, no se toca): migración fb91a5ebd149 (63b066a), OV-0123 y
+  OV-0124 subtotal = total, IVA 0, partida legacy igual; probada sube/baja/sube en copia de producción y aplicada en Pruebas.
+  El Excel de datos actuales ya da IVA% 0. Pendiente: pase a main (Gabriel).
