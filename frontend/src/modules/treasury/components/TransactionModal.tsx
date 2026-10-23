@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { BankAccount, BankTransactionCreate } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
 import { salesService } from '../../../api/sales-service';
@@ -11,6 +11,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { formatMoney, formatInvoiceType } from '@/utils/format';
 import { getLocalTodayDateKey } from '@/modules/planning/hooks/usePlanning';
 import Modal from '@/components/ui/Modal';
+import { ModalFooter } from '@/components/ui/ModalFooter';
 import { Button } from '@/components/ui/Button';
 
 interface Props {
@@ -141,50 +142,32 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   };
 
   return (
-    <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-xl shadow-xl w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* ENCABEZADO */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/80">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-xl font-bold text-slate-800">Registrar Movimiento</h2>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                  watchType === 'IN' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>
-                {watchType === 'IN' ? 'Ingreso' : 'Egreso'}
-              </span>
-            </div>
-            
-            {currentAccount && (
-              <div className="text-sm text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
-                <p>Cuenta: <span className="font-semibold text-slate-700">{currentAccount.name}</span></p>
-                <p>Saldo Actual: <span className="font-semibold">{formatMoney(currentAccount.current_balance)}</span></p>
-                
-                <div className="flex items-center gap-2 pl-4 border-l border-slate-200 ml-2">
-                  <span>Nuevo Saldo Estimado:</span>
-                  <span className={`text-lg font-black tracking-tight transition-all duration-300 ${
-                    watchAmount > 0 
-                      ? (watchType === 'IN' ? 'text-green-600' : 'text-red-600')
-                      : 'text-slate-400'
-                  }`}>
-                    {formatMoney(nuevoSaldoCuenta)}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-          <Button type="button" variant="ghost" size="icon" title="Cerrar" onClick={onClose} className="text-slate-400 hover:text-slate-600 -mr-2 -mt-2">
-            <X size={24} />
-          </Button>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="p-8">
+    <Modal
+      isOpen
+      onClose={onClose}
+      size="3xl"
+      title={watchType === 'IN' ? 'Registrar ingreso' : 'Registrar egreso'}
+      subtitle={currentAccount
+        ? `${currentAccount.name} · saldo actual ${formatMoney(currentAccount.current_balance)} · nuevo saldo estimado ${formatMoney(nuevoSaldoCuenta)}`
+        : undefined}
+      footer={(
+        <ModalFooter
+          onCancel={onClose}
+          confirmLabel={watchType === 'IN' ? 'Registrar ingreso' : 'Registrar egreso'}
+          form="bank-transaction"
+          disabled={watchAmount <= 0 || excedido}
+          busy={isSubmitting}
+          tone="success"
+        />
+      )}
+    >
+        <form id="bank-transaction" onSubmit={handleSubmit(onSubmit)}>
           
           <Input type="hidden" {...register('transaction_type')} />
 
           {!selectedAccountId && (
             <div className="mb-6 w-full md:w-1/3">
-              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Cuenta Bancaria *</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5">Cuenta bancaria *</label>
               <Input type="hidden" {...register('account_id', { required: true, valueAsNumber: true })} />
               <SearchableSelect
                 items={accounts ?? []}
@@ -199,7 +182,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
 
           {watchType === 'IN' && (
             <div className="mb-6 w-full md:w-2/3">
-              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">¿Afecta una factura de cliente? (opcional)</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5">¿Afecta una factura de cliente? (opcional)</label>
               <SearchableSelect
                 items={pendingInvoices}
                 value={selectedCxcId === '' ? '' : String(selectedCxcId)}
@@ -215,7 +198,7 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
 
           {watchType === 'IN' && selectedInvoice && (
             <div className="mb-6 w-full md:w-2/3 bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-3">Factura que se cobra</div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-3">Factura que se cobra</div>
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between"><span className="text-slate-500">Proyecto</span><span className="font-semibold text-slate-800">{selectedInvoice.project_name}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Factura</span><span className="font-mono text-slate-800">{selectedInvoice.invoice_folio}</span></div>
@@ -299,12 +282,12 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                   <Plus size={14} /> Agregar factura
                 </Button>
                 {importeCobro > 0 && (
-                  <div className={`text-xs font-bold px-3 py-1.5 rounded-lg ${excedido ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                  <div className={`text-xs font-bold px-3 py-1.5 rounded-lg tabular-nums ${excedido ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                     {excedido
-                      ? `⚠ Excedido por ${formatMoney((totalAplicado - importeCobro))}`
+                      ? `Excedido por ${formatMoney((totalAplicado - importeCobro))}`
                       : sobrante > 0.01
                         ? `Sobrante: ${formatMoney(sobrante)}`
-                        : '✓ Depósito aplicado al 100%'
+                        : 'Depósito aplicado al 100%'
                     }
                   </div>
                 )}
@@ -316,32 +299,32 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             
             {!selectedInvoice && (
             <div className="w-full md:flex-[2]">
-              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Concepto *</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5">Concepto *</label>
               <Input
                 {...register('description')}
                 placeholder="Ej. Pago de cliente..."
                 autoFocus
-                className="w-full px-4 py-3 rounded-xl focus-visible:ring-blue-500 text-slate-900 placeholder:text-slate-400"
+                className="w-full"
               />
             </div>
             )}
 
             <div className="w-full md:flex-[1]">
-              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Ref / Folio</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5">Referencia o folio</label>
               <Input
                 {...register('reference')}
                 placeholder="Opcional"
-                className="w-full px-4 py-3 rounded-xl focus-visible:ring-blue-500 text-slate-900 placeholder:text-slate-400"
+                className="w-full"
               />
             </div>
 
             {/* IMPORTE MAGICO CON FORMATO */}
             <div className="w-full md:w-48">
-              <label className={`block text-xs font-semibold uppercase mb-1.5 ${watchType === 'IN' ? 'text-green-600' : 'text-red-600'}`}>
+              <label className={`block text-xs font-bold mb-1.5 ${watchType === 'IN' ? 'text-emerald-700' : 'text-red-600'}`}>
                 Importe *
               </label>
               <div className="relative">
-                <span className={`absolute left-4 top-3 font-medium text-lg ${watchType === 'IN' ? 'text-green-600' : 'text-red-600'}`}>$</span>
+                <span className={`absolute left-4 top-3 font-medium text-lg ${watchType === 'IN' ? 'text-emerald-700' : 'text-red-600'}`}>$</span>
                 
                 {/* El campo oculto que guarda el número real para la base de datos */}
                 <Input type="hidden" {...register('amount', { required: true, min: 0.01 })} />
@@ -373,35 +356,19 @@ export const TransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                       setValue('amount', 0, { shouldValidate: true });
                     }
                   }}
-                  className={`w-full pl-8 pr-4 py-3 rounded-xl font-bold text-lg text-right 
-                    ${watchType === 'IN' 
-                      ? 'focus-visible:ring-green-500 text-green-700' 
-                      : 'focus-visible:ring-red-500 text-red-700'
-                    }`}
+                  className={`w-full pl-8 pr-4 py-3 rounded-lg font-bold text-lg text-right tabular-nums
+                    ${watchType === 'IN' ? 'text-emerald-700' : 'text-red-700'}`}
                 />
               </div>
             </div>
 
             {/* H9: fecha del depósito (o del egreso) */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-slate-500 mb-1.5">
                 Fecha {watchType === 'IN' ? 'del depósito' : 'del movimiento'}
               </label>
               <Input type="date" max={getLocalTodayDateKey()} {...register('deposit_date')} className="w-full" />
             </div>
-          </div>
-
-          <div className="pt-8 flex items-center justify-end gap-3 mt-2 border-t border-slate-50">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || watchAmount <= 0 || excedido}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {isSubmitting ? 'Guardando...' : `Registrar ${watchType === 'IN' ? 'Ingreso' : 'Egreso'}`}
-            </Button>
           </div>
 
         </form>

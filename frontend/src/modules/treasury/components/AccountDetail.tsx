@@ -11,6 +11,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { formatDate, formatDateTime, formatMoney } from '@/utils/format';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import { ModalFooter } from '@/components/ui/ModalFooter';
 
 interface Transaction {
   id: number;
@@ -31,12 +32,14 @@ interface Props {
       company_name?: string;
       logo_path?: string;
   } | null;
+  /** The parent header already shows the account name (Gerencia, guide v2 §2). */
+  hideTitle?: boolean;
 }
 
-// 👇 Ajustado a 10 movimientos por página
+// 10 movements per page
 const ITEMS_PER_PAGE = 10;
 
-export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransaction, config }) => {
+export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransaction, config, hideTitle = false }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -236,7 +239,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
     {
       key: 'transaction_date',
       label: 'Fecha',
-      render: (tx) => <span className="whitespace-nowrap">{formatDate(tx.transaction_date)}</span>,
+      render: (tx) => <span className="whitespace-nowrap text-slate-600">{formatDate(tx.transaction_date)}</span>,
     },
     {
       key: 'description',
@@ -250,7 +253,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
         />
       ) : (
         <span
-          className="cursor-pointer font-medium text-gray-900 hover:text-indigo-600 transition-colors"
+          className="cursor-pointer font-medium text-slate-800 hover:text-indigo-600 transition-colors"
           title="Clic para editar"
           onClick={() => startEditingTx(tx)}
         >
@@ -260,7 +263,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
     },
     {
       key: 'reference',
-      label: 'Ref',
+      label: 'Referencia',
       render: (tx) => editingTxId === tx.id ? (
         <div className="flex items-center gap-2">
           <Input
@@ -284,42 +287,41 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
             title="Cancelar edición"
             onClick={() => setEditingTxId(null)}
           >
-            ✕
+            Cancelar
           </Button>
         </div>
       ) : (
         <span
-          className="cursor-pointer text-gray-500 hover:text-indigo-600 transition-colors"
+          className="cursor-pointer text-slate-500 hover:text-indigo-600 transition-colors"
           title="Clic para editar"
           onClick={() => startEditingTx(tx)}
         >
-          {tx.reference || '-'}
+          {tx.reference || <span className="text-slate-300 text-xs">—</span>}
         </span>
       ),
     },
     {
       key: 'egreso',
       label: 'Egreso (-)',
-      render: (tx) => (
-        <span className="block text-right font-medium text-red-600 whitespace-nowrap">
-          {tx.transaction_type === 'OUT' ? `${formatMoney(tx.amount)}` : '-'}
-        </span>
-      ),
+      align: 'right',
+      render: (tx) => tx.transaction_type === 'OUT' ? (
+        <span className="block text-right tabular-nums font-medium text-red-600 whitespace-nowrap">{formatMoney(tx.amount)}</span>
+      ) : <span className="block text-right text-slate-300 text-xs">—</span>,
     },
     {
       key: 'ingreso',
       label: 'Ingreso (+)',
-      render: (tx) => (
-        <span className="block text-right font-medium text-green-600 whitespace-nowrap">
-          {tx.transaction_type === 'IN' ? `${formatMoney(tx.amount)}` : '-'}
-        </span>
-      ),
+      align: 'right',
+      render: (tx) => tx.transaction_type === 'IN' ? (
+        <span className="block text-right tabular-nums font-medium text-emerald-700 whitespace-nowrap">{formatMoney(tx.amount)}</span>
+      ) : <span className="block text-right text-slate-300 text-xs">—</span>,
     },
     {
       key: 'running_balance',
       label: 'Saldo',
+      align: 'right',
       render: (tx) => (
-        <span className="block text-right font-bold text-gray-900 whitespace-nowrap">
+        <span className="block text-right tabular-nums font-bold text-slate-800 whitespace-nowrap">
           {formatMoney(tx.running_balance)}
         </span>
       ),
@@ -435,55 +437,38 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Encabezado */}
-      <div className="flex items-center gap-4">
+      {!hideTitle && (
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">{account.name}</h2>
-          <p className="text-gray-500">Cuenta: {account.account_number || 'S/N'} • {account.currency}</p>
+          <p className="text-slate-500 font-medium">Cuenta {account.account_number || 'S/N'} · {account.currency}</p>
         </div>
-      </div>
+      )}
 
-      {/* Tarjeta Resumen y Botones de Acción */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+      {/* Balance and the account's actions (guide v2 §3 and §7: white card, color only in the figure) */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
-          <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Saldo Actual</p>
-          {/* 👇 Importe grande cambiado a color azul (text-blue-700) */}
-          <p className="text-4xl font-black text-blue-700">
-            {formatMoney(account.current_balance)}
-          </p>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Saldo actual</p>
+          <p className="text-2xl font-black tabular-nums mt-1 text-slate-800">{formatMoney(account.current_balance)}</p>
         </div>
-
         <div className="flex flex-wrap gap-3">
-          <Button
-            type="button"
-            className="bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => onOpenTransaction('IN')}
-          >
-            <PlusCircle size={20} /> Registrar Ingreso
+          <Button type="button" variant="outline" onClick={() => onOpenTransaction('IN')}>
+            <PlusCircle size={16} /> Registrar ingreso
           </Button>
-
-          <Button
-            type="button"
-            className="bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => onOpenTransaction('OUT')}
-          >
-            <MinusCircle size={20} /> Registrar Egreso
+          <Button type="button" variant="outline" onClick={() => onOpenTransaction('OUT')}>
+            <MinusCircle size={16} /> Registrar egreso
           </Button>
-
           <Button type="button" variant="outline" onClick={() => setShowTransferModal(true)}>
-            <ArrowRightLeft size={20} /> Transferir
+            <ArrowRightLeft size={16} /> Transferir
           </Button>
-
           <Button type="button" variant="outline" onClick={handlePrint}>
-            <Printer size={20} /> Estado de Cuenta
+            <Printer size={16} /> Estado de cuenta
           </Button>
         </div>
       </div>
 
-      {/* Tabla del Libro Mayor */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
-          <h3 className="font-semibold text-gray-800">Historial de Movimientos</h3>
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
+        <div className="p-4 border-b border-slate-200 bg-slate-50">
+          <h3 className="font-bold text-slate-700">Historial de movimientos</h3>
         </div>
 
         <div className="overflow-x-auto flex-1">
@@ -508,15 +493,16 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                 },
               }];
             }}
+            headerStyle="report"
             className="border-0 shadow-none rounded-none"
           />
         </div>
 
         {/* Controles de Paginación */}
         {!isLoading && transactionsWithBalance.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-gray-200 bg-white gap-4">
-            <span className="text-sm text-gray-500">
-              Mostrando <span className="font-medium text-gray-900">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> a <span className="font-medium text-gray-900">{Math.min(currentPage * ITEMS_PER_PAGE, transactionsWithBalance.length)}</span> de <span className="font-medium text-gray-900">{transactionsWithBalance.length}</span> movimientos
+          <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-200 bg-white gap-4">
+            <span className="text-sm text-slate-500 tabular-nums">
+              Mostrando <span className="font-medium text-slate-800">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> a <span className="font-medium text-slate-800">{Math.min(currentPage * ITEMS_PER_PAGE, transactionsWithBalance.length)}</span> de <span className="font-medium text-slate-800">{transactionsWithBalance.length}</span> movimientos
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -525,12 +511,12 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                 size="sm"
                 onClick={handlePrevPage}
                 disabled={currentPage === 1}
-                title="Página Anterior (Flecha Izquierda)"
+                title="Página anterior (flecha izquierda)"
               >
                 <ArrowLeft size={16} /> Anterior
               </Button>
-              <span className="text-sm font-medium text-gray-600 min-w-[80px] text-center">
-                Pág {currentPage} de {totalPages}
+              <span className="text-sm font-medium text-slate-600 min-w-[80px] text-center tabular-nums">
+                Pág. {currentPage} de {totalPages}
               </span>
               <Button
                 type="button"
@@ -538,7 +524,7 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
                 size="sm"
                 onClick={handleNextPage}
                 disabled={currentPage === totalPages}
-                title="Página Siguiente (Flecha Derecha)"
+                title="Página siguiente (flecha derecha)"
               >
                 Siguiente <ArrowRight size={16} />
               </Button>
@@ -547,100 +533,67 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
         )}
       </div>
 
-      {showTransferModal && (
-          <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => setShowTransferModal(false)} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-blue-500 animate-in zoom-in-95 duration-200">
-                  <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                      <div>
-                          <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                              <ArrowRightLeft size={20} className="text-blue-600" />
-                              Transferencia entre Cuentas
-                          </h3>
-                          <p className="text-xs text-slate-500 mt-1">
-                              Origen: <strong>{account.name}</strong> — Saldo: {formatMoney((account.current_balance || 0))}
-                          </p>
-                      </div>
-                      <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          title="Cerrar"
-                          onClick={() => setShowTransferModal(false)}
-                          className="text-slate-400 hover:text-slate-600"
-                      >
-                          ✕
-                      </Button>
-                  </div>
-                  <div className="p-6 space-y-4">
-                      <div>
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                              Cuenta Destino
-                          </label>
-                          <SearchableSelect
-                              items={accounts}
-                              value={transferForm.to_account_id}
-                              onChange={(value) => setTransferForm((f) => ({ ...f, to_account_id: value }))}
-                              getLabel={(a) => `${a.name} — ${formatMoney((a.current_balance || 0))}`}
-                              getValue={(a) => String(a.id)}
-                              placeholder="-- Seleccionar cuenta --"
-                              className="w-full"
-                          />
-                      </div>
-                      <div>
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                              Monto
-                          </label>
-                          <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2 focus-within:border-blue-400">
-                              <span className="text-sm font-bold text-slate-400 mr-2">$</span>
-                              <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  placeholder="0.00"
-                                  value={transferForm.amount}
-                                  onChange={e => setTransferForm(f => ({ ...f, amount: e.target.value }))}
-                                  className="border-0 shadow-none focus-visible:ring-0 text-sm font-bold text-slate-700"
-                              />
-                          </div>
-                      </div>
-                      <div>
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                              Referencia (opcional)
-                          </label>
-                          <Input
-                              type="text"
-                              placeholder="Ej. TRF-001"
-                              value={transferForm.reference}
-                              onChange={e => setTransferForm(f => ({ ...f, reference: e.target.value }))}
-                              className="text-sm font-bold text-slate-700 focus-visible:border-blue-400"
-                          />
-                      </div>
-                      <div>
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                              Concepto (opcional)
-                          </label>
-                          <Input
-                              type="text"
-                              placeholder="Ej. Traspaso para pago de nómina"
-                              value={transferForm.description}
-                              onChange={e => setTransferForm(f => ({ ...f, description: e.target.value }))}
-                              className="text-sm font-bold text-slate-700 focus-visible:border-blue-400"
-                          />
-                      </div>
-                  </div>
-                  <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
-                      <Button type="button" variant="outline" onClick={() => setShowTransferModal(false)}>
-                          Cancelar
-                      </Button>
-                      <Button
-                          type="button"
-                          onClick={handleTransfer}
-                          disabled={transferring || !transferForm.to_account_id || !transferForm.amount}
-                      >
-                          {transferring ? 'Transfiriendo...' : 'Confirmar Transferencia'}
-                      </Button>
-                  </div>
-              </Modal>
-      )}
+      <Modal
+          isOpen={showTransferModal}
+          onClose={() => setShowTransferModal(false)}
+          size="sm"
+          title="Transferencia entre cuentas"
+          subtitle={`Origen: ${account.name} · saldo ${formatMoney(account.current_balance || 0)}`}
+          footer={(
+              <ModalFooter
+                  onCancel={() => setShowTransferModal(false)}
+                  onConfirm={handleTransfer}
+                  confirmLabel="Transferir"
+                  disabled={!transferForm.to_account_id || !transferForm.amount}
+                  busy={transferring}
+              />
+          )}
+      >
+          <div className="space-y-4">
+              <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Cuenta destino</label>
+                  <SearchableSelect
+                      items={accounts}
+                      value={transferForm.to_account_id}
+                      onChange={(value) => setTransferForm((f) => ({ ...f, to_account_id: value }))}
+                      getLabel={(a) => `${a.name} — ${formatMoney((a.current_balance || 0))}`}
+                      getValue={(a) => String(a.id)}
+                      placeholder="Selecciona la cuenta"
+                      className="w-full"
+                  />
+              </div>
+              <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Monto</label>
+                  <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={transferForm.amount}
+                      onChange={e => setTransferForm(f => ({ ...f, amount: e.target.value }))}
+                      className="tabular-nums"
+                  />
+              </div>
+              <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Referencia (opcional)</label>
+                  <Input
+                      type="text"
+                      placeholder="Ej. TRF-001"
+                      value={transferForm.reference}
+                      onChange={e => setTransferForm(f => ({ ...f, reference: e.target.value }))}
+                  />
+              </div>
+              <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Concepto (opcional)</label>
+                  <Input
+                      type="text"
+                      placeholder="Ej. Traspaso para pago de nómina"
+                      value={transferForm.description}
+                      onChange={e => setTransferForm(f => ({ ...f, description: e.target.value }))}
+                  />
+              </div>
+          </div>
+      </Modal>
 
       <VConfirmDialog
         isOpen={showTransferConfirm}
@@ -655,65 +608,42 @@ export const AccountDetail: React.FC<Props> = ({ account, onBack, onOpenTransact
         onCancel={() => setShowTransferConfirm(false)}
       />
 
-      {cancelTxModal.open && cancelTxModal.tx && (
-        <Modal isOpen bare size="custom" overlayZIndex={50} onClose={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border-t-4 border-t-rose-500 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cancelar Movimiento</h3>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                title="Cerrar"
-                onClick={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                ✕
-              </Button>
+      <Modal
+        isOpen={cancelTxModal.open && cancelTxModal.tx !== null}
+        onClose={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }}
+        size="sm"
+        title="Cancelar movimiento"
+        footer={(
+          <ModalFooter
+            onCancel={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }}
+            cancelLabel="Regresar"
+            onConfirm={handleCancelTransaction}
+            confirmLabel="Cancelar movimiento"
+            busy={cancellingTx}
+          />
+        )}
+      >
+        {cancelTxModal.tx && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-1">
+              <p className="text-sm font-bold text-slate-700 tabular-nums">Monto: {formatMoney(cancelTxModal.tx.amount)}</p>
+              <p className="text-sm text-slate-600">{cancelTxModal.tx.description || 'Sin descripción'}</p>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-slate-50 rounded-lg p-4 space-y-1">
-                <p className="text-sm font-bold text-slate-700">
-                  Monto: {formatMoney(cancelTxModal.tx.amount)}
-                </p>
-                <p className="text-sm text-slate-600">
-                  {cancelTxModal.tx.description || 'Sin descripción'}
-                </p>
-              </div>
-              <p className="text-xs text-rose-600 font-medium leading-relaxed">
-                Esta acción revierte el saldo de la cuenta. Asegúrate de que el movimiento no esté ligado a un pago activo.
-              </p>
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                  Motivo de cancelación *
-                </label>
-                <Input
-                  type="text"
-                  value={cancelTxReason}
-                  onChange={e => setCancelTxReason(e.target.value)}
-                  className="text-sm font-bold text-slate-700 focus-visible:border-rose-400"
-                  placeholder="Describe el motivo..."
-                />
-              </div>
+            <p className="text-xs text-red-600 font-medium">
+              Esta acción revierte el saldo de la cuenta. Asegúrate de que el movimiento no esté ligado a un pago activo.
+            </p>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Motivo de cancelación *</label>
+              <Input
+                type="text"
+                value={cancelTxReason}
+                onChange={e => setCancelTxReason(e.target.value)}
+                placeholder="Describe el motivo..."
+              />
             </div>
-            <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => { setCancelTxModal({ open: false, tx: null }); setCancelTxReason(''); }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                onClick={handleCancelTransaction}
-                disabled={cancellingTx}
-                className="bg-rose-600 hover:bg-rose-700"
-              >
-                {cancellingTx ? 'Cancelando...' : 'Confirmar cancelación'}
-              </Button>
-            </div>
-          </Modal>
-      )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

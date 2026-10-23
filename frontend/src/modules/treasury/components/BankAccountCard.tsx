@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Wallet } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { BankAccount } from '../../../types/treasury';
 import { formatMoney } from '@/utils/format';
 
@@ -8,39 +8,32 @@ interface Props {
   onClick: (account: BankAccount) => void;
 }
 
+/** Bank account card (guide v2 §3: white card, the color only in the figure and the status tag). */
 export const BankAccountCard: React.FC<Props> = ({ account, onClick }) => {
   return (
-    <div 
+    <div
       onClick={() => onClick(account)}
-      className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer"
+      role="button"
+      className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md hover:border-indigo-200 transition"
     >
-      {/* Encabezado de la tarjeta */}
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-            <Building2 size={24} />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900">{account.name}</h3>
-            <p className="text-sm text-gray-500">Cta: {account.account_number}</p>
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Building2 size={20} className="text-indigo-600 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-bold text-slate-800 truncate">{account.name}</p>
+            <p className="text-xs text-slate-500 font-mono">Cta. {account.account_number}</p>
           </div>
         </div>
-        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${account.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+        <span className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border ${account.is_active
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
           {account.is_active ? 'Activa' : 'Inactiva'}
         </span>
       </div>
-
-      {/* Sección del Saldo */}
-      <div className="mt-4 pt-4 border-t border-gray-100">
-        <p className="text-sm text-gray-500 mb-1">Saldo Actual</p>
-        <div className="flex items-center gap-2">
-          <Wallet className="text-gray-400" size={20} />
-          <span className="text-2xl font-bold text-gray-900">
-            {formatMoney(account.current_balance)} 
-            <span className="text-sm text-gray-500 font-normal ml-1">{account.currency}</span>
-          </span>
-        </div>
-      </div>
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mt-4">Saldo actual</p>
+      <p className="text-2xl font-black tabular-nums mt-1 text-slate-800">
+        {formatMoney(account.current_balance)}
+        <span className="text-sm text-slate-500 font-medium ml-1">{account.currency}</span>
+      </p>
     </div>
   );
 };

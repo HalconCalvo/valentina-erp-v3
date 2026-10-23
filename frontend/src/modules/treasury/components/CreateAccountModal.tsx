@@ -1,13 +1,12 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import { X } from 'lucide-react';
 import { BankAccountCreate } from '../../../types/treasury';
 import { treasuryService } from '../../../api/treasury-service';
 import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { toast } from '@/components/ui/VToast';
 import Modal from '@/components/ui/Modal';
-import { Button } from '@/components/ui/Button';
+import { ModalFooter } from '@/components/ui/ModalFooter';
 
 const CURRENCY_OPTIONS = [
   { value: 'MXN', label: 'MXN - Pesos' },
@@ -43,40 +42,35 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
   };
 
   return (
-    <Modal isOpen bare size="custom" overlayZIndex={50} onClose={onClose} className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-        
-        {/* Encabezado */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-lg font-bold text-slate-800">Nueva Cuenta Bancaria</h2>
-          <Button type="button" variant="ghost" size="icon-sm" title="Cerrar" onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X size={20} />
-          </Button>
-        </div>
-
-        {/* Formulario */}
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
-          
+    <Modal
+      isOpen
+      onClose={onClose}
+      size="sm"
+      title="Nueva cuenta bancaria"
+      footer={<ModalFooter onCancel={onClose} confirmLabel="Guardar cuenta" form="create-bank-account" busy={isSubmitting} />}
+    >
+        <form id="create-bank-account" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de la Cuenta *</label>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Nombre de la cuenta *</label>
             <Input
               {...register('name', { required: 'El nombre es obligatorio' })}
               placeholder="Ej. Banorte Fiscal MXN"
             />
-            {errors.name && <span className="text-xs text-red-500">{errors.name.message}</span>}
+            {errors.name && <span className="text-xs text-red-600">{errors.name.message}</span>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Número de Cuenta *</label>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Número de cuenta *</label>
             <Input
               {...register('account_number', { required: 'El número de cuenta es obligatorio' })}
               placeholder="Ej. 0987654321"
             />
-            {errors.account_number && <span className="text-xs text-red-500">{errors.account_number.message}</span>}
+            {errors.account_number && <span className="text-xs text-red-600">{errors.account_number.message}</span>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Moneda</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Moneda</label>
               <SearchableSelect
                 items={CURRENCY_OPTIONS}
                 value={watch('currency') || 'MXN'}
@@ -88,33 +82,18 @@ export const CreateAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Saldo Inicial</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Saldo inicial</label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-slate-500">$</span>
                 <Input
                   type="number"
                   step="0.01"
                   {...register('initial_balance', { valueAsNumber: true })}
-                  className="pl-7"
+                  className="pl-7 tabular-nums"
                 />
               </div>
             </div>
           </div>
-
-          {/* Botones de Acción */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {isSubmitting ? 'Guardando...' : 'Guardar Cuenta'}
-            </Button>
-          </div>
-
         </form>
       </Modal>
   );

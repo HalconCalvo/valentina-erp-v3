@@ -5,15 +5,12 @@ import {
     Landmark,
     LayoutDashboard,
     Plus,
-    Wallet,
     Coins,
     Bell,
     ShoppingCart,
     Tag,
-    ArrowRight,
     Users,
     TrendingDown,
-    Search,
     CheckCircle,
     FileText,
     FileSpreadsheet,
@@ -22,11 +19,13 @@ import {
     Lock,
     Unlock,
     CheckCircle2,
+    Home,
 } from 'lucide-react';
 
-import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { VPageHeader } from '@/components/ui/VPageHeader';
+import { VHubCard } from '@/components/ui/VHubCard';
+import { VEmptyState } from '@/components/ui/VEmptyState';
 import type { LucideIcon } from 'lucide-react';
 import { toast } from '@/components/ui/VToast';
 import { salesService } from '../../../api/sales-service';
@@ -229,13 +228,6 @@ const ManagementDashboard: React.FC = () => {
     const formatCurrency = (n: number) =>
         formatMoney(n);
 
-    const getCountSize = (count: number) => {
-        const len = String(count).length;
-        if (len > 3) return 'text-xl';
-        if (len === 3) return 'text-2xl';
-        return 'text-3xl';
-    };
-
     const cxcHubDocCount =
         invoicingAdvanceCount + invoicingProgressCount + cxcAgingCount;
     const cxcHubTotal =
@@ -271,6 +263,10 @@ const ManagementDashboard: React.FC = () => {
     // Guide v2 §2/§12: each level has its own title (no number), a one-line subtitle and "Regresar a <origen>"
     const getHeader = (): { icon: LucideIcon; title: string; subtitle: string } => {
         if (root === 'PENDING') return { icon: Bell, title: 'Pendientes', subtitle: 'OCs en espera de firma y anticipos por facturar.' };
+        if (root === 'BANKS' && selectedAccountForDetail) {
+            const acc = selectedAccountForDetail;
+            return { icon: Landmark, title: acc.name, subtitle: `Cuenta ${acc.account_number || 'S/N'} · ${acc.currency} · saldo y movimientos.` };
+        }
         if (root === 'BANKS') return { icon: Landmark, title: 'Bancos', subtitle: 'Cuentas, saldos y conciliación (confidencial).' };
         if (root === 'CXC') return { icon: Coins, title: 'Cuentas por cobrar', subtitle: 'Anticipos, avances por facturar y antigüedad de saldos.' };
         if (root === 'OV_FACTURACION') return { icon: FileText, title: 'OV y facturación', subtitle: 'Órdenes de venta, anticipos y avances.' };
@@ -317,374 +313,142 @@ const ManagementDashboard: React.FC = () => {
                     title={header.title}
                     subtitle={header.subtitle}
                     onRefresh={() => void refreshManagement()}
+                    actions={root === 'BANKS' && canSeeBanks && !selectedAccountForDetail ? (
+                        <Button type="button" onClick={() => setIsCreateModalOpen(true)}>
+                            <Plus size={16} /> Nueva cuenta
+                        </Button>
+                    ) : undefined}
                     onBack={root !== null ? handleRegresar : undefined}
                     backLabel={getBackLabel()}
                 />
             )}
 
             {root === null && (
-                <div
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4"
-                >
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => setRoot('PENDING')}
-                            className={`p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group ${
-                                totalTasks > 0 ? 'border-l-amber-500 ring-2 ring-amber-100' : 'border-l-slate-300'
-                            }`}
-                        >
-                            <div
-                                className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center border-r font-black transition-colors ${
-                                    totalTasks > 0
-                                        ? 'bg-amber-50 text-amber-700 border-amber-100 group-hover:bg-amber-100'
-                                        : 'bg-slate-50 text-slate-400 border-slate-100 group-hover:bg-slate-100'
-                                } ${getCountSize(totalTasks)}`}
-                            >
-                                {totalTasks > 0 ? totalTasks : <CheckCircle size={28} className="text-slate-300" />}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                        1. Pendientes
-                                    </p>
-                                    <Bell size={16} className={totalTasks > 0 ? 'text-amber-500' : 'text-slate-300'} />
-                                </div>
-                                <div
-                                    className={`text-lg font-bold tracking-tight leading-none truncate text-right ${
-                                        totalTasks > 0 ? 'text-amber-600' : 'text-slate-500'
-                                    }`}
-                                >
-                                    {totalTasks === 0 ? 'Sin alertas' : `${totalTasks} acciones`}
-                                </div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                        Compras y ventas
-                                    </p>
-                                    <Search size={14} className={totalTasks > 0 ? 'text-amber-400' : 'text-slate-300'} />
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+                    <VHubCard
+                        label="1. Pendientes"
+                        title={totalTasks === 0 ? 'Sin alertas' : 'Por atender'}
+                        footer={totalTasks === 0 ? 'Compras y ventas al día' : `${totalTasks} ${totalTasks === 1 ? 'acción' : 'acciones'} · compras y ventas`}
+                        icon={Bell}
+                        side={totalTasks > 0 ? totalTasks : <CheckCircle size={28} className="text-slate-300" />}
+                        tone={totalTasks > 0 ? 'amber' : 'slate'}
+                        highlight={totalTasks > 0}
+                        onClick={() => setRoot('PENDING')}
+                    />
                     {canSeeBanks && (
-                        <div className="w-full relative h-40">
-                            <Card
-                                onClick={() => setRoot('BANKS')}
-                                className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-slate-800 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                            >
-                                <div
-                                    className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-700 border-r border-slate-200 font-black transition-colors group-hover:bg-slate-100 ${getCountSize(accounts.length)}`}
-                                >
-                                    {accounts.length}
-                                </div>
-                                <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                    <div className="flex justify-between items-start">
-                                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                            2. Bancos
-                                        </p>
-                                        <Landmark size={16} className="text-slate-800" />
-                                    </div>
-                                    <div className="text-lg font-black text-slate-800 tracking-tight leading-none truncate text-right">
-                                        {formatCurrency(totalBankBalance)}
-                                    </div>
-                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                            Solo Dirección / Gerencia
-                                        </p>
-                                        <Wallet size={14} className="text-slate-400" />
-                                    </div>
-                                </div>
-                            </Card>
-                        </div>
+                        <VHubCard
+                            label="2. Bancos"
+                            title="Saldos"
+                            footer={`${formatCurrency(totalBankBalance)} · solo Dirección`}
+                            icon={Landmark}
+                            side={accounts.length}
+                            tone="slate"
+                            onClick={() => setRoot('BANKS')}
+                        />
                     )}
-
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => setRoot('CXC')}
-                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-emerald-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                        >
-                            <div
-                                className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black transition-colors group-hover:bg-emerald-100 ${getCountSize(cxcHubDocCount)}`}
-                            >
-                                {cxcHubDocCount}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                        3. CXC
-                                    </p>
-                                    <Coins size={16} className="text-emerald-500" />
-                                </div>
-                                <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate text-right">
-                                    {formatCurrency(cxcHubTotal)}
-                                </div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                        A + B + C (sub-tarjetas CXC)
-                                    </p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => setRoot('OV_FACTURACION')}
-                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-600 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                        >
-                            <div
-                                className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 ${getCountSize(invoicingAdvanceCount + invoicingProgressCount)}`}
-                            >
-                                {invoicingAdvanceCount + invoicingProgressCount}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                        OV y Facturación
-                                    </p>
-                                    <FileText size={16} className="text-indigo-600" />
-                                </div>
-                                <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate text-right">
-                                    {formatCurrency(invoicingAdvanceTotal + invoicingProgressTotal)}
-                                </div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                        Rayos X, anticipos y avances
-                                    </p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => setRoot('CXP')}
-                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-red-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                        >
-                            <div
-                                className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black transition-colors group-hover:bg-red-100 ${getCountSize(payablesCount)}`}
-                            >
-                                {payablesCount}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                        4. CXP
-                                    </p>
-                                    <TrendingDown size={16} className="text-red-500" />
-                                </div>
-                                <div className="text-lg font-black text-red-600 tracking-tight leading-none truncate text-right">
-                                    {formatCurrency(totalPayables)}
-                                </div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                        Por vencimiento
-                                    </p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => setRoot('PAYROLL')}
-                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                        >
-                            <div
-                                className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 ${getCountSize(payrollDash.commPayableCount + payrollDash.instPayableCount)}`}
-                            >
-                                {payrollDash.commPayableCount + payrollDash.instPayableCount}
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                        5. Nómina
-                                    </p>
-                                    <Users size={16} className="text-indigo-500" />
-                                </div>
-                                <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate text-right">
-                                    {formatCurrency(payrollDash.commPayableTotal + payrollDash.instPayableTotal)}
-                                </div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                        Comisiones, instalaciones, cierre semanal
-                                    </p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => navigate('/ov-tracking')}
-                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-indigo-600 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                        >
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black transition-colors group-hover:bg-indigo-100 text-2xl">
-                                🏘️
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">6. Seguimiento</p>
-                                </div>
-                                <div>
-                                    <h3 className="text-base font-bold text-slate-700 leading-tight">Seguimiento<br/>de OV</h3>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Casas por OV activa</p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => navigate('/director/legacy-import')}
-                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-violet-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                        >
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-violet-50 text-violet-700 border-r border-violet-100 font-black transition-colors group-hover:bg-violet-100">
-                                <FileSpreadsheet size={28} />
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                        Migración Legacy
-                                    </p>
-                                    <FileSpreadsheet size={16} className="text-violet-500" />
-                                </div>
-                                <div className="text-lg font-bold text-slate-700 tracking-tight leading-none truncate text-right">
-                                    Importar OVs
-                                </div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                        Excel → CxC sin producción
-                                    </p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => navigate('/director/sanitation')}
-                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-amber-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                        >
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-amber-50 text-amber-700 border-r border-amber-100 font-black transition-colors group-hover:bg-amber-100">
-                                <Scale size={28} />
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                        Saneamiento
-                                    </p>
-                                    <Scale size={16} className="text-amber-500" />
-                                </div>
-                                <div className="text-lg font-bold text-slate-700 tracking-tight leading-none truncate text-right">
-                                    Saldos de OVs y facturas
-                                </div>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                                        Recalcular con lo cobrado
-                                    </p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="w-full relative h-40">
-                        <Card
-                            onClick={() => navigate('/director/audit')}
-                            className="p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-l-slate-500 transform hover:-translate-y-1 h-full flex flex-col justify-between bg-white overflow-hidden group"
-                        >
-                            <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-slate-50 text-slate-600 border-r border-slate-200 font-black transition-colors group-hover:bg-slate-100">
-                                <Shield size={28} />
-                            </div>
-                            <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                                <div className="flex justify-between items-start">
-                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Auditoría</p>
-                                    <Shield size={16} className="text-slate-500" />
-                                </div>
-                                <div>
-                                    <h3 className="text-base font-bold text-slate-700 leading-tight">Cambios por campo</h3>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Quién cambió qué y cuándo</p>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-
+                    <VHubCard
+                        label="3. Cuentas por cobrar"
+                        title="Por cobrar"
+                        footer={`${formatCurrency(cxcHubTotal)} · anticipos, avances y saldos`}
+                        icon={Coins}
+                        side={cxcHubDocCount}
+                        tone="emerald"
+                        onClick={() => setRoot('CXC')}
+                    />
+                    <VHubCard
+                        label="OV y facturación"
+                        title="Por facturar"
+                        footer={`${formatCurrency(invoicingAdvanceTotal + invoicingProgressTotal)} · anticipos y avances`}
+                        icon={FileText}
+                        side={invoicingAdvanceCount + invoicingProgressCount}
+                        tone="indigo"
+                        onClick={() => setRoot('OV_FACTURACION')}
+                    />
+                    <VHubCard
+                        label="4. Cuentas por pagar"
+                        title="Por pagar"
+                        footer={`${formatCurrency(totalPayables)} · por vencimiento`}
+                        icon={TrendingDown}
+                        side={payablesCount}
+                        tone="red"
+                        onClick={() => setRoot('CXP')}
+                    />
+                    <VHubCard
+                        label="5. Nómina"
+                        title="Por pagar"
+                        footer={`${formatCurrency(payrollDash.commPayableTotal + payrollDash.instPayableTotal)} · comisiones e instalaciones`}
+                        icon={Users}
+                        side={payrollDash.commPayableCount + payrollDash.instPayableCount}
+                        tone="indigo"
+                        onClick={() => setRoot('PAYROLL')}
+                    />
+                    <VHubCard
+                        label="6. Seguimiento"
+                        title="Casas por OV"
+                        footer="OVs activas"
+                        icon={Home}
+                        side={<Home size={28} />}
+                        tone="indigo"
+                        onClick={() => navigate('/ov-tracking')}
+                    />
+                    <VHubCard
+                        label="Migración legacy"
+                        title="Importar OVs"
+                        footer="Excel a CxC sin producción"
+                        icon={FileSpreadsheet}
+                        side={<FileSpreadsheet size={28} />}
+                        tone="violet"
+                        onClick={() => navigate('/director/legacy-import')}
+                    />
+                    <VHubCard
+                        label="Saneamiento"
+                        title="Saldos"
+                        footer="Recalcular OVs y facturas con lo cobrado"
+                        icon={Scale}
+                        side={<Scale size={28} />}
+                        tone="amber"
+                        onClick={() => navigate('/director/sanitation')}
+                    />
+                    <VHubCard
+                        label="Auditoría"
+                        title="Cambios"
+                        footer="Quién cambió qué campo y cuándo"
+                        icon={Shield}
+                        side={<Shield size={28} />}
+                        tone="slate"
+                        onClick={() => navigate('/director/audit')}
+                    />
                 </div>
             )}
 
             {root === 'PENDING' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card
+                    <VHubCard
+                        label="1.1 Compras"
+                        title="OCs por firmar"
+                        footer="Órdenes de compra en espera de autorización"
+                        icon={ShoppingCart}
+                        side={alerts.pending_requisitions}
+                        tone="amber"
                         onClick={() =>
                             navigate('/inventory', {
                                 state: { openSection: 'PURCHASE_ORDERS', targetTab: 'BRAKE', returnTo: '/management' },
                             })
                         }
-                        className="p-6 border-l-4 border-l-orange-500 bg-white cursor-pointer hover:shadow-lg transition-all group relative overflow-hidden h-40 flex flex-col justify-between"
-                    >
-                        <div
-                            className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black group-hover:bg-orange-100 transition-colors ${getCountSize(alerts.pending_requisitions)}`}
-                        >
-                            {alerts.pending_requisitions}
-                        </div>
-                        <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate">
-                                        <ShoppingCart size={18} className="text-orange-500" />
-                                        1.1 Compras
-                                    </h4>
-                                </div>
-                                <ArrowRight
-                                    size={20}
-                                    className="text-orange-300 group-hover:text-orange-600 transition-all group-hover:translate-x-1"
-                                />
-                            </div>
-                            <div className="flex justify-end">
-                                <div className="text-lg font-bold text-orange-600 tracking-tight leading-none truncate">
-                                    OCs en espera de firma
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card
+                    />
+                    <VHubCard
+                        label="1.2 Ventas"
+                        title="Anticipos"
+                        footer="Anticipos por facturar"
+                        icon={Tag}
+                        side={alerts.pending_sales_advances}
+                        tone="emerald"
                         onClick={() =>
                             navigate('/finance/pending-invoices', {
                                 state: { returnTo: '/management', progressTab: 'ANTICIPOS' },
                             })
                         }
-                        className="p-6 border-l-4 border-l-emerald-500 bg-white cursor-pointer hover:shadow-lg transition-all group relative overflow-hidden h-40 flex flex-col justify-between"
-                    >
-                        <div
-                            className={`absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-emerald-50 text-emerald-700 border-r border-emerald-100 font-black group-hover:bg-emerald-100 transition-colors ${getCountSize(alerts.pending_sales_advances)}`}
-                        >
-                            {alerts.pending_sales_advances}
-                        </div>
-                        <div className="ml-16 h-full flex flex-col justify-between pl-2">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 truncate">
-                                        <Tag size={18} className="text-emerald-500" />
-                                        1.2 Ventas
-                                    </h4>
-                                </div>
-                                <ArrowRight
-                                    size={20}
-                                    className="text-emerald-300 group-hover:text-emerald-600 transition-all group-hover:translate-x-1"
-                                />
-                            </div>
-                            <div className="flex justify-end">
-                                <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate">
-                                    Anticipos por facturar
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
+                    />
                 </div>
             )}
 
@@ -699,26 +463,21 @@ const ManagementDashboard: React.FC = () => {
                                 setIsTransactionModalOpen(true);
                             }}
                             config={config}
+                            hideTitle
                         />
+                    ) : accounts.length === 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <VEmptyState icon={<Landmark />} title="No hay cuentas bancarias." />
+                        </div>
                     ) : (
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden p-6">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-                                    <Landmark className="text-slate-500" /> Cuentas y conciliación
-                                </h3>
-                                <Button type="button" onClick={() => setIsCreateModalOpen(true)}>
-                                    <Plus size={16} /> Nueva cuenta
-                                </Button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {accounts.map((account) => (
-                                    <BankAccountCard
-                                        key={account.id}
-                                        account={account}
-                                        onClick={setSelectedAccountForDetail}
-                                    />
-                                ))}
-                            </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {accounts.map((account) => (
+                                <BankAccountCard
+                                    key={account.id}
+                                    account={account}
+                                    onClick={setSelectedAccountForDetail}
+                                />
+                            ))}
                         </div>
                     )}
                 </div>
