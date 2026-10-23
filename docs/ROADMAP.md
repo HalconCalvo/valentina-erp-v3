@@ -284,7 +284,7 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
   segundo de creación pueden repetirse (revisar unicidad).
 - Visto 22/10: fechas de factura de clientes importadas (00:00) se muestran un día antes en Rayos X (conversión a hora Mérida).
 
-## 16. Recetas en uso: decir quién las bloquea; diálogo "Nueva" visible (Gabriel, 23/10) — en Pruebas
+## 16. Recetas en uso: decir quién las bloquea; diálogo "Nueva" visible (Gabriel, 23/10) — en producción (9b02cc4)
 - fe05734 / b02c875 / eae175e: aviso y 409 con el documento (COT/OV), receta en uso bloqueada al abrir, Monitor ya no tapa
-  el diálogo "Nueva". Probado en Pruebas. Falta: pase a main.
+  el diálogo "Nueva". Probado en Pruebas; en producción 11:50.
 - Fuera de alcance: el clon con "Nueva" no copia la descripción comercial.

@@ -5439,3 +5439,4 @@ VIERNES 23/10/2026
   al 16 % y Viveyuc es Tasa Cero → subtotal, IVA y comisión mal (comisión +$11,497.30 si se corrige). Propuesta de migración
   con bitácora, sin aplicar: espera a Gabriel. El importador ignora IVA% en OVs existentes; en nuevas "EXENTO" da error
   (no hay tasa "Exento"), usar 0.
+- 11:50 Pase a main (Gabriel): 9b02cc4 con el arreglo de recetas; producción sirve el aviso nuevo, migración sin cambio (064478e54c17).

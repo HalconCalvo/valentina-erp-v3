@@ -142,7 +142,7 @@ Reportar en Hechas.
 anterior queda obsoleta e intacta para lo ya vendido. Otra cotización que use la receta vieja muestra "Receta
 corregida — la reemplaza …. Actualízala al editar la cotización" (Ventas la cambia al editar). Clonar con "Nueva" NO cambia ninguna cotización: sirve para cotizaciones
 nuevas o para que Ventas la elija al editar una cotización regresada.
-**Pendiente:** pase a main (lo corre Gabriel o fuera de horario). Fuera de alcance, anotado: el clon no copia la
+**Pase a main hecho** (Gabriel, 9b02cc4; producción con el arreglo a las 11:50, sin migraciones). Fuera de alcance, anotado: el clon no copia la
 descripción comercial.
 
 <details><summary>Instrucción original</summary>
