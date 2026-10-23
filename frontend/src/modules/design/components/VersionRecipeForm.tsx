@@ -24,6 +24,8 @@ interface Props {
   initialStatus: VersionStatus;
   commercialDescription: string;
   onDescriptionChange: (value: string) => void;
+  /** Used by an OV or a quotation under review/authorized: materials and status stay as they are. */
+  locked?: boolean;
 }
 
 // ============================================================================
@@ -154,6 +156,7 @@ export const VersionRecipeForm = ({
     initialStatus,
     commercialDescription,
     onDescriptionChange,
+    locked = false,
 }: Props) => {
     
   const { control, register, handleSubmit, setValue, getValues, watch } = useForm({
@@ -180,7 +183,7 @@ export const VersionRecipeForm = ({
     if (initialStatus) setInternalStatus(initialStatus);
   }, [defaultValues, initialStatus, setValue, getValues]);
 
-  const isReadOnly = internalStatus === VersionStatus.READY || internalStatus === VersionStatus.OBSOLETE;
+  const isReadOnly = locked || internalStatus === VersionStatus.READY || internalStatus === VersionStatus.OBSOLETE;
   const getUsageCost = (mat: Material) => {
       if (!mat) return 0;
       const factor = (mat as any).conversion_factor;
@@ -426,6 +429,7 @@ export const VersionRecipeForm = ({
                     items={STATUS_SELECT_ITEMS}
                     value={internalStatus}
                     onChange={(v) => setInternalStatus(v as VersionStatus)}
+                    disabled={locked}
                     getLabel={(item) => item.label}
                     getValue={(item) => item.value}
                 />

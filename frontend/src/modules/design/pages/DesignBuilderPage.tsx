@@ -379,7 +379,10 @@ export default function DesignBuilderPage() {
         {(version?.is_locked || version?.replaces_version_id || version?.status === VersionStatus.OBSOLETE) && (
           <div className="max-w-6xl mx-auto mb-4 bg-sky-50 border border-sky-300 rounded-lg p-4 text-sm text-sky-900 space-y-1">
             {version?.is_locked && (
-              <p className="font-semibold">Receta en uso (OV o cotización en revisión, autorizada o convertida): sus materiales no se pueden cambiar. Usa “Nueva versión” para clonarla.</p>
+              <>
+                <p className="font-semibold">Receta en uso por {version.locked_by?.length ? version.locked_by.join(', ') : 'una OV o cotización'}: sus materiales y su estatus no se pueden cambiar.</p>
+                <p>Para cambiarla usa “Nueva” (clona esta receta). Para que una cotización tome la receta corregida, se regresa para cambios y Dirección la corrige al autorizarla.</p>
+              </>
             )}
             {version?.status === VersionStatus.OBSOLETE && <p>Versión obsoleta: ya existe una receta corregida que la reemplaza.</p>}
             {version?.replaces_version_id && (
@@ -397,6 +400,7 @@ export default function DesignBuilderPage() {
                 isLoading={isSaving}
                 commercialDescription={commercialDescription}
                 onDescriptionChange={(val) => setCommercialDescription(val)}
+                locked={!!version.is_locked}
             />
         </div>
       </div>

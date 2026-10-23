@@ -14,7 +14,7 @@ from app.core import material_groups
 from app.core.audit_context import audit_reason
 from app.core.permissions import require_roles, role_of
 from app.models.design import ProductMaster, ProductVersion, VersionComponent, VersionStatus
-from app.models.sales import QuotationStatus
+from app.models.sales import QuotationKind, QuotationStatus
 from app.repositories import design_repository as design_repo
 from app.schemas.design_schema import ProductVersionCreate, ProductVersionRead
 from app.services import recipe_cost_service
@@ -22,16 +22,37 @@ from app.services import recipe_cost_service
 DESIGN_ROLES = {"DESIGN", "DIRECTOR"}
 LOCKING_QUOTATION_STATUSES = [QuotationStatus.PENDING_AUTH, QuotationStatus.AUTHORIZED,
                               QuotationStatus.CONVERTED, QuotationStatus.APPLIED]
-LOCKED_MESSAGE = "Esta receta ya se usó en una OV o en una cotización en revisión, autorizada o convertida; clónala para cambiarla."
+QUOTATION_STATUS_LABELS = {QuotationStatus.PENDING_AUTH: "en revisión", QuotationStatus.AUTHORIZED: "autorizada",
+                           QuotationStatus.CONVERTED: "convertida", QuotationStatus.APPLIED: "aplicada"}
 
 
 def assert_design_role(user) -> None:
     require_roles(user, DESIGN_ROLES, "Solo Diseño y Dirección modifican recetas.")
 
 
+def _quotation_folio(quotation) -> str:
+    # Same folios as quotation_service.quotation_folio (not imported: that module depends on this one)
+    if quotation.kind == QuotationKind.CHANGE_ORDER:
+        return f"CAM-{quotation.parent_sales_order_id:04d}-{quotation.change_number or 0}"
+    return f"COT-{quotation.id:04d}"
+
+
+def locked_by(session: Session, version_id: int) -> List[str]:
+    """The OVs and the quotations under review, authorized, converted or applied that use this recipe."""
+    orders = [f"OV-{order_id:04d}" for order_id in design_repo.orders_using_version(session, version_id)]
+    quotations = [f"{_quotation_folio(q)} ({QUOTATION_STATUS_LABELS.get(q.status, q.status)})"
+                  for q in design_repo.quotations_using_version(session, version_id, LOCKING_QUOTATION_STATUSES)]
+    return orders + quotations
+
+
 def is_locked(session: Session, version_id: int) -> bool:
-    return (design_repo.version_used_by_order(session, version_id)
-            or design_repo.version_used_by_quotation(session, version_id, LOCKING_QUOTATION_STATUSES))
+    return bool(locked_by(session, version_id))
+
+
+def _raise_locked(documents: Sequence[str]) -> None:
+    raise HTTPException(status_code=409, detail=(
+        f"Esta receta la usa {', '.join(documents)}: sus materiales no se pueden cambiar. Usa \"Nueva\" para "
+        "clonarla; para que una cotización tome la receta corregida, Dirección la corrige al autorizarla."))
 
 
 def _get_or_404(session: Session, version_id: int) -> ProductVersion:
@@ -102,8 +123,10 @@ def _same_recipe(current: Sequence[Tuple[int, float]], incoming: Sequence[Tuple[
 
 
 def _assert_status_change(session: Session, version: ProductVersion, new_status: str) -> None:
-    if new_status == VersionStatus.DRAFT and version.status != VersionStatus.DRAFT and is_locked(session, version.id):
-        raise HTTPException(status_code=409, detail=LOCKED_MESSAGE)
+    if new_status == VersionStatus.DRAFT and version.status != VersionStatus.DRAFT:
+        documents = locked_by(session, version.id)
+        if documents:
+            _raise_locked(documents)
 
 
 def update_version(session: Session, version_id: int, data: ProductVersionCreate, user) -> ProductVersion:
@@ -111,8 +134,9 @@ def update_version(session: Session, version_id: int, data: ProductVersionCreate
     version = _get_or_404(session, version_id)
     incoming = _active_components(session, [(c.material_id, c.quantity) for c in data.components])
     recipe_changes = not _same_recipe(_components_of(session, version_id), incoming)
-    if recipe_changes and is_locked(session, version_id):
-        raise HTTPException(status_code=409, detail=LOCKED_MESSAGE)
+    documents = locked_by(session, version_id) if recipe_changes else []
+    if documents:
+        _raise_locked(documents)
     _assert_status_change(session, version, data.status)
     version.version_name = data.version_name
     version.status = data.status
@@ -134,7 +158,8 @@ def read_version(session: Session, version_id: int) -> ProductVersionRead:
     response.estimated_cost = cost.total
     response.material_cost = cost.material_total
     response.alerts = cost.alerts
-    response.is_locked = is_locked(session, version_id)
+    response.locked_by = locked_by(session, version_id)
+    response.is_locked = bool(response.locked_by)
     return response
 
 

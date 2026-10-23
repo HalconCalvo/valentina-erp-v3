@@ -38,25 +38,29 @@ def get_replacement(session: Session, version_id: int) -> Optional[ProductVersio
     return session.exec(select(ProductVersion).where(ProductVersion.replaces_version_id == version_id)).first()
 
 
-def version_used_by_order(session: Session, version_id: int) -> bool:
-    return session.exec(
-        select(SalesOrderItem.id).where(
+def orders_using_version(session: Session, version_id: int) -> List[int]:
+    """Ids of the sales orders with an active line made from this recipe."""
+    return sorted(set(session.exec(
+        select(SalesOrderItem.sales_order_id).where(
             SalesOrderItem.origin_version_id == version_id,
             SalesOrderItem.is_cancelled == False,  # noqa: E712
         )
-    ).first() is not None
+    ).all()))
 
 
-def version_used_by_quotation(session: Session, version_id: int, statuses: Sequence[QuotationStatus]) -> bool:
-    return session.exec(
-        select(QuotationItem.id)
-        .join(Quotation, Quotation.id == QuotationItem.quotation_id)
+def quotations_using_version(session: Session, version_id: int, statuses: Sequence[QuotationStatus]) -> List[Quotation]:
+    """Quotations in one of `statuses` with an active line made from this recipe."""
+    return list(session.exec(
+        select(Quotation)
+        .join(QuotationItem, QuotationItem.quotation_id == Quotation.id)
         .where(
             QuotationItem.origin_version_id == version_id,
             QuotationItem.is_cancelled == False,  # noqa: E712
             Quotation.status.in_(list(statuses)),
         )
-    ).first() is not None
+        .distinct()
+        .order_by(Quotation.id)
+    ).all())
 
 
 def get_versions_of_master(session: Session, master_id: int) -> List[ProductVersion]:

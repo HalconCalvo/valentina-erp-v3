@@ -255,3 +255,28 @@ def test_open_quotations_see_the_corrected_recipe(client_fixture, session_fixtur
     assert updated.status_code == 200
     item = updated.json()["items"][0]
     assert item["recipe_obsolete"] is False and item["frozen_unit_cost"] == 3000.0 and item["unit_price"] == 5000.0
+
+
+def test_corrected_recipe_is_locked_by_its_authorized_quotation(client_fixture, session_fixture, auth_header_director,
+                                                                 seed_client_and_tax):
+    """Gabriel 23/10 (COT-0100): the version born from the correction is used by the authorized quotation, so
+    editing it in the catalog is refused, naming the quotation; returning the quotation frees it."""
+    board = _material(session_fixture, "F3-COT100", 1000.0)
+    version = _recipe(session_fixture, seed_client_and_tax[0].id, [(board, 1)])
+    quotation = _pending(client_fixture, auth_header_director, seed_client_and_tax, [_line(version)])
+    corrections = [{"origin_version_id": version.id, "reason": "Ajuste de cantidades",
+                    "components": [{"material_id": board.id, "quantity": 1.1}]}]
+    assert _authorize(client_fixture, auth_header_director, quotation["id"], [_line(version)], corrections).status_code == 200
+    session_fixture.expire_all()
+    corrected = session_fixture.exec(select(ProductVersion).where(ProductVersion.replaces_version_id == version.id)).one()
+    url = f"{DESIGN}/versions/{corrected.id}"
+    folio = f"{quotation['folio']} (autorizada)"
+    assert client_fixture.get(url, headers=auth_header_director).json()["locked_by"] == [folio]
+    refused = client_fixture.put(url, headers=auth_header_director,
+                                 json=_version_body(corrected, [(board, 1.2)], status="DRAFT", name=corrected.version_name))
+    assert refused.status_code == 409 and folio in refused.json()["detail"]
+
+    back = client_fixture.post(f"{QUOTATIONS}/{quotation['id']}/request-changes", headers=auth_header_director,
+                               json={"reason": "Ajustar otra vez la receta"})
+    assert back.status_code == 200, back.text
+    assert client_fixture.get(url, headers=auth_header_director).json()["locked_by"] == []

@@ -50,6 +50,7 @@ export interface ProductVersion {
     corrected_at?: string | null;
     corrected_in_quotation_id?: number | null;
     is_locked?: boolean;
+    locked_by?: string[];
 }
 
 // Nivel 1: Maestro (La Familia del Producto)

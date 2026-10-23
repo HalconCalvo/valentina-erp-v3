@@ -77,6 +77,7 @@ class ProductVersionRead(ProductVersionBase):
     corrected_at: Optional[datetime] = None
     corrected_in_quotation_id: Optional[int] = None
     is_locked: bool = False
+    locked_by: List[str] = []   # OVs and quotations that make it immutable (e.g. "COT-0100 (autorizada)")
 
 # ==========================================
 # 4. LECTURA MAESTRO COMPLETO (Para Catálogo)
