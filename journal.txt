@@ -5392,3 +5392,46 @@ JUEVES 22/10/2026
   día antes (medianoche guardada como UTC) — anotado en ROADMAP.
 - 16:32 Pase a main (Gabriel): 1e3d631. Render aplicó 064478e54c17 a las 16:32; cifras de ZENARA/Luna en producción iguales a
   Pruebas. Pendiente: Xaze en producción (Corregir a 0 dos OCs y "Recibir con una factura" las 3).
+
+================================================================
+CIERRE DEL DÍA — 22/10/2026 (asesor)
+================================================================
+HECHO HOY (todo en producción: main 1e3d631, migración 064478e54c17, 16:32)
+- Bodega Electrónica Xaze, factura 300490 ($3,214.06, 3 monomandos de 3 OCs, una prepagada): las 2 recepciones de Delmy
+  estaban bien (la CxP se calcula con lo recibido, no con el monto capturado); la 3ª se bloqueó por folio repetido en OC
+  prepagada → opción (a): ahora avisa y deja confirmar.
+- NUEVO "Recibir con una factura" en el Andén: una factura para varias OCs del mismo proveedor, una sola CxP (total − anticipos),
+  precio real por renglón, IVA una vez; otra entrega con la misma factura se suma a la CxP pendiente (sin duplicar). Probado en
+  Pruebas: Xaze da $2,141.06 por pagar exacto.
+- La recepción SÍ permite el precio unitario real y llega a CxP y kárdex. "Corregir" en Todas las OCs solo corrige cantidad.
+- ZENARA (OV-0122) corregida en producción: avances en efectivo #44 $255,619.92 / anticipo $127,809.96 / cobrado $127,000 y
+  #45 $214,767.04 / $107,383.52 / $107,000; redondeos $809.96 y $383.52 como NC "REDONDEO-EFECTIVO"; 492 y 594 con folio y
+  pagadas. Facturado $1,457,265.08; falta cobrar del contrato $342,577.00. OV-0115 Luna sin marca de Excel.
+- Recepción parcial: el faltante se recibe en el Andén (la OC sigue con "Entrega parcial"); "Órdenes de compra → En recepción"
+  es solo consulta. "OC satisfecha" cierra aunque falte.
+- Karina puede bajar "Descargar Excel con los datos actuales" (Migración de OVs) y solo agregar lo que falte.
+
+PENDIENTE
+1. Delmy en producción (Xaze): "Corregir" a 0 SOLO el renglón del monomando en OC-M260717190517 y OC-M260708174748; luego
+   "Recibir con una factura" con las 3 OCs, folio 300490, $3,214.06, monomando $923.58 → $2,141.06 por pagar. (Gabriel inició
+   la corrección a las 17:10; confirmar que quedó.)
+2. Karina: Excel nuevo desde "Descargar Excel con los datos actuales"; ZENARA con los montos de arriba (NC de redondeo no va);
+   GALERIAS PH 71 (¿anticipo fact. 631 $49,539.54 o $43,539.54?); CANEA (abono $46,797 ¿24/09 o 07/10, con o sin $0.60?);
+   OV-0124 PALMAR modificada (total $157,551 vs $170,429). Verificar que las fechas del Excel no salgan un día antes.
+3. BUG fechas de facturas importadas se ven un día antes en pantalla (zona horaria) — en ROADMAP; corregir próxima ronda.
+4. Mejora: registrar una NC fuera del importador no baja "Falta cobrar del contrato" (anotado por Claude Code).
+5. MIDO 4243/04243 con Administración (banco y factura física).
+6. Tanda 1: falta revisar Simulador, Centro de impresión, Lotes, Campo y Pendiente de facturar; dudas: etiquetas chicas en
+   mayúsculas, "Confirmar firma" como botón de color en Detalle de casa (pestañas se quedan), "Mesa de control", números de hubs;
+   propuestas: Actualizar donde falta, buscador estándar proveedor/SKU, estados de OC en español, quitar "Volver al listado",
+   quitar el 0 de "Todas las OCs", botón "Recibir faltante" en En recepción. Luego tanda 2.
+7. Reiniciar Claude Code (actualización pendiente).
+8. Más adelante: importador de OVs tolerante a mayúsculas/acentos/títulos con sugerencia de nombre; aviso de folio de proveedor
+   repetido ignorando ceros a la izquierda; Seguimiento de OV; D43 paso 1; simulacro con el equipo.
+
+VIERNES 23/10/2026
+- 11:42 Receta "nueva" que no se grababa (Gabriel, COT-0100): la "nueva" era #444, creada al corregir la receta al autorizar
+  COT-0100; como la cotización quedó autorizada con ella, #444 está en uso y el bloqueo es correcto. Faltaba decirlo: ahora el
+  aviso y el 409 nombran el documento ("COT-0100 (autorizada)") y la receta en uso queda bloqueada desde que se abre
+  (fe05734, b02c875). Defecto real: el recuadro Monitor (z-100) tapaba el diálogo "Nueva" (eae175e). Probado en Pruebas
+  (#417 → clon #423 editable, grabado). Pendiente: pase a main. Lección: z-index altos en sticky tapan modales.

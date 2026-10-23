@@ -10,6 +10,17 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
+### 23/10 11:24 — Migración de OVs: IVA de PROMOTORA VIVEYUC en el Excel descargado (Karina, producción; SOLO LECTURA)
+Karina: "Descargar Excel con los datos actuales" pone IVA 16 % a todos los clientes, y PROMOTORA VIVEYUC es IVA EXENTO.
+1. Producción solo lectura: ¿las OVs/CxC de Viveyuc en Valentina tienen tasa exenta o 16 %? (¿dónde vive la tasa: OV, factura,
+   cliente?). ¿El error está en lo que guardó el importador o solo en la exportación?
+2. Si es la exportación: corregir en Pruebas para que el Excel lleve la tasa real de cada OV/factura.
+3. Si los datos de Viveyuc están en 16 % en Valentina: listar OVs y montos afectados y proponer la corrección (como migración
+   con bitácora) — DETENERTE para aprobación.
+4. Antes de que Karina vuelva a subir: ¿un Excel con IVA mal en Viveyuc generaría diferencias o cambiaría algo? (el importador
+   no cambia lo existente, pero confirmar para las OVs nuevas).
+Reportar en Hechas.
+
 ## Preguntas para el asesor
 
 - [2026-10-16 15:44] D41, dudas que NO cambié:
@@ -67,6 +78,54 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 23/10 11:42 — HECHO en Pruebas: receta "nueva" que no se graba (fe05734, b02c875, eae175e). Me DETENGO.
+**Qué pasó en producción (solo lectura, bitácora):**
+- 08:55 se creó "Mueblo consultorio (Socia)" V1.0 (#443); 09:13 Ventas mandó COT-0100 a revisión.
+- 10:58 Gabriel corrigió la receta AL AUTORIZAR COT-0100: se creó #444 "V1.0 (corr. COT-0100)" (MDF blanco 1→1.1, MDF visón
+  0.5→1, tapacanto visón 12.5→25, zoclo 1.4→1.5), #443 quedó obsoleta y COT-0100 quedó AUTORIZADA con #444 ($9,323.71).
+- No hay ninguna otra versión creada hoy: la "versión nueva" es #444. Como COT-0100 ya está autorizada con ella, #444 también
+  está en uso y el bloqueo es correcto. La pantalla no lo decía: mostraba "Lista", dejaba pasarla a Borrador y cambiar
+  cantidades, y al grabar salía el mensaje genérico. No graba sobre el id viejo y no es regresión de DesignCatalogPage.
+- Además, el botón "Nueva" (clonar) tenía un defecto real: el recuadro "Monitor" quedaba ENCIMA del diálogo y tapaba el campo
+  del nombre (capturas 02). Por eso no hay clones hoy.
+**Corregido en Pruebas** (tests 384 backend / 59 frontend, build; probado en pantalla con COT-0087):
+- La receta en uso dice quién la usa: "Receta en uso por COT-0087 (autorizada)…" y el 409 también nombra el documento.
+- Si está en uso, materiales y estatus quedan bloqueados desde que se abre ("usa Nueva para hacer una versión editable").
+- El diálogo "Nueva" ya se ve completo; se clonó #417 → #423 en Borrador, se cambió Maquila 7→8 y grabó ($21,873.93).
+- Capturas: docs/pruebas_23_10/01–03.
+**Cómo hacerlo HOY en producción** (antes del pase a main):
+- Si solo quiere una receta editable: abrir la receta, clic en "+ Nueva" y, sin tocar nada, ENTER (el nombre "V2.0" ya
+  viene escrito y el campo tiene el foco; el recuadro tapa el diálogo pero Enter lo graba). Se abre la versión nueva en
+  Borrador; ahí cambia cantidades y graba. El nombre se cambia con el lápiz.
+- Para que COT-0100 tome otra corrección: (1) en COT-0100 "Regresar para cambios" con motivo (Ventas o Dirección; está
+  autorizada); (2) Ventas "Solicitar autorización"; (3) Dirección, en la revisión, corrige la receta (cantidades + motivo)
+  y autoriza: se crea otra versión que reemplaza a #444 y la cotización queda con ella y con su precio recalculado.
+**Cómo una cotización toma la receta corregida y quién:** solo Dirección, al autorizar una cotización en revisión
+(corrección de receta en la pantalla de autorización). La versión corregida es nueva, "Lista", con "reemplaza a #…"; la
+anterior queda obsoleta e intacta para lo ya vendido. Otra cotización que use la receta vieja muestra "Receta
+corregida — la reemplaza …. Actualízala al editar la cotización" (Ventas la cambia al editar). Clonar con "Nueva" NO cambia ninguna cotización: sirve para cotizaciones
+nuevas o para que Ventas la elija al editar una cotización regresada.
+**Pendiente:** pase a main (lo corre Gabriel o fuera de horario). Fuera de alcance, anotado: el clon no copia la
+descripción comercial.
+
+<details><summary>Instrucción original</summary>
+
+#### 23/10 11:20 — URGENTE (producción): no se puede grabar una versión NUEVA de receta (Gabriel)
+Gabriel quiso corregir cantidades de una receta usada en una cotización en revisión → bloqueo correcto (LOCKED_MESSAGE). Creó una
+versión nueva y al grabarla sale el MISMO mensaje: "Esta receta ya se usó en una OV o en una cotización en revisión, autorizada o
+convertida; clónala para cambiarla." Una versión recién creada no debería estar bloqueada (design_version_service.update_version /
+is_locked), así que sospecho que la pantalla está grabando sobre la versión ORIGINAL (id viejo) o que la "versión nueva" no se
+creó como versión aparte. DesignCatalogPage cambió mucho en la tanda 1 (posible regresión).
+1. Producción SOLO LECTURA: ver qué versiones se crearon hoy (23/10) en el producto que editó Gabriel, su estado y componentes,
+   y qué id intentó actualizar la pantalla (logs de Render si hace falta).
+2. Reproducir en Pruebas: receta usada en cotización en revisión → "Crear nueva versión" → cambiar cantidades → grabar.
+3. Corregir en Pruebas y decir cómo debe hacerlo Gabriel hoy en producción (pasos en pantalla) mientras pasa a main.
+4. Explicar cómo la cotización en revisión toma la receta corregida (versión que reemplaza / "Receta actualizada" en la
+   cotización) y quién puede hacerlo.
+Reportar en Hechas y DETENERTE.
+
+</details>
 
 ### 22/10 16:32 — PASE A MAIN hecho (Gabriel corrió el push: main 177faed → 1e3d631)
 - Render: migración 064478e54c17 en producción a las 16:32; API responde; frontend nuevo publicado 16:32.
