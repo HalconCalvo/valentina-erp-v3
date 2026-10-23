@@ -5435,3 +5435,7 @@ VIERNES 23/10/2026
   aviso y el 409 nombran el documento ("COT-0100 (autorizada)") y la receta en uso queda bloqueada desde que se abre
   (fe05734, b02c875). Defecto real: el recuadro Monitor (z-100) tapaba el diálogo "Nueva" (eae175e). Probado en Pruebas
   (#417 → clon #423 editable, grabado). Pendiente: pase a main. Lección: z-index altos en sticky tapan modales.
+- 11:44 Viveyuc IVA (Karina): la tasa vive en la OV; la exportación refleja lo guardado. OV-0123 y OV-0124 (Excel) quedaron
+  al 16 % y Viveyuc es Tasa Cero → subtotal, IVA y comisión mal (comisión +$11,497.30 si se corrige). Propuesta de migración
+  con bitácora, sin aplicar: espera a Gabriel. El importador ignora IVA% en OVs existentes; en nuevas "EXENTO" da error
+  (no hay tasa "Exento"), usar 0.

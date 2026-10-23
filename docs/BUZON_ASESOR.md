@@ -10,17 +10,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
-### 23/10 11:24 — Migración de OVs: IVA de PROMOTORA VIVEYUC en el Excel descargado (Karina, producción; SOLO LECTURA)
-Karina: "Descargar Excel con los datos actuales" pone IVA 16 % a todos los clientes, y PROMOTORA VIVEYUC es IVA EXENTO.
-1. Producción solo lectura: ¿las OVs/CxC de Viveyuc en Valentina tienen tasa exenta o 16 %? (¿dónde vive la tasa: OV, factura,
-   cliente?). ¿El error está en lo que guardó el importador o solo en la exportación?
-2. Si es la exportación: corregir en Pruebas para que el Excel lleve la tasa real de cada OV/factura.
-3. Si los datos de Viveyuc están en 16 % en Valentina: listar OVs y montos afectados y proponer la corrección (como migración
-   con bitácora) — DETENERTE para aprobación.
-4. Antes de que Karina vuelva a subir: ¿un Excel con IVA mal en Viveyuc generaría diferencias o cambiaría algo? (el importador
-   no cambia lo existente, pero confirmar para las OVs nuevas).
-Reportar en Hechas.
-
 ## Preguntas para el asesor
 
 - [2026-10-16 15:44] D41, dudas que NO cambié:
@@ -78,6 +67,53 @@ Reportar en Hechas.
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 23/10 11:44 — Viveyuc IVA: revisado (solo lectura). La exportación está bien; el DATO está en 16 %. Corrección PROPUESTA, sin aplicar: espera aprobación
+**1. Dónde vive la tasa y qué tiene Viveyuc.**
+- La tasa vive en la OV (`sales_orders.tax_rate_id` + `tax_amount`). Las facturas (CxC) y el cliente no tienen tasa.
+- El Excel descargado pone en IVA% la tasa de cada OV, así que la exportación no se equivoca: refleja lo guardado.
+- Las 8 OVs de Viveyuc capturadas en Valentina tienen "Tasa Cero" (0 %).
+- Las 2 que entraron por el Excel quedaron al 16 %: OV-0123 PUERTO PALMERAS, 18 LOTES y OV-0124 PALMAR. Las 19 OVs del Excel
+  están todas al 16 %; solo Viveyuc tiene OVs a 0 % fuera del Excel.
+- Lo guardó así el importador con lo que traía el Excel original. En producción no existe una tasa llamada "Exento"; solo
+  "Tasa Cero".
+**2. Exportación:** no hay nada que corregir.
+**3. Afectado (el total con IVA y lo cobrado NO cambian; cambia el desglose):**
+| OV | Total c/IVA | Subtotal hoy → correcto | IVA hoy → correcto | Comisión 3 % hoy → correcta |
+|---|---|---|---|---|
+| OV-0123 | $2,620,963.00 | $2,259,450.86 → $2,620,963.00 | $361,512.14 → $0.00 | $67,783.53 → $78,628.89 |
+| OV-0124 | $157,551.00 | $135,819.83 → $157,551.00 | $21,731.17 → $0.00 | $4,074.59 → $4,726.53 |
+- También cambian la venta sin IVA en Margen neto % y en los reportes, y la comisión de Ventas (+$11,497.30 entre las dos).
+- **Propuesta:** migración con bitácora (`change_id`, guarda de valor esperado, downgrade desde la bitácora) que, en esas
+  2 OVs, pone tax_rate_id 1→3 (Tasa Cero), tax_amount → 0, subtotal → total y commission_amount → 3 % del subtotal.
+- Si alguna comisión ya se pagó o liquidó, primero se revisa eso.
+- **DETENIDO: necesito el sí de Gabriel** (sube la comisión).
+**4. Si Karina vuelve a subir:**
+- En las OVs que ya existen (traen Folio_OV) el importador NO lee el IVA%: no cambia nada ni marca diferencia, diga 16, 0 o
+  EXENTO.
+- En OVs NUEVAS:
+  - IVA% = "EXENTO" da error y no importa, porque no hay tasa "Exento" en producción;
+  - IVA% = 0 entra como Tasa Cero (correcto);
+  - IVA% = 16 entra al 16 % (el mismo error de hoy).
+- Indicación para Karina: en Viveyuc escribir 0, no EXENTO.
+- Decisión menor, si Gabriel quiere: que "EXENTO" se tome como Tasa Cero.
+**Nota:** OV-0045 y OV-0123 (Puerto Palmeras, mismas facturas 237 y 245) siguen siendo la pregunta abierta D14 con
+contabilidad. Si OV-0123 es la buena, la corrección del IVA aplica igual.
+
+<details><summary>Instrucción original</summary>
+
+#### 23/10 11:24 — Migración de OVs: IVA de PROMOTORA VIVEYUC en el Excel descargado (Karina, producción; SOLO LECTURA)
+Karina: "Descargar Excel con los datos actuales" pone IVA 16 % a todos los clientes, y PROMOTORA VIVEYUC es IVA EXENTO.
+1. Producción solo lectura: ¿las OVs/CxC de Viveyuc en Valentina tienen tasa exenta o 16 %? (¿dónde vive la tasa: OV, factura,
+   cliente?). ¿El error está en lo que guardó el importador o solo en la exportación?
+2. Si es la exportación: corregir en Pruebas para que el Excel lleve la tasa real de cada OV/factura.
+3. Si los datos de Viveyuc están en 16 % en Valentina: listar OVs y montos afectados y proponer la corrección (como migración
+   con bitácora) — DETENERTE para aprobación.
+4. Antes de que Karina vuelva a subir: ¿un Excel con IVA mal en Viveyuc generaría diferencias o cambiaría algo? (el importador
+   no cambia lo existente, pero confirmar para las OVs nuevas).
+Reportar en Hechas.
+
+</details>
 
 ### 23/10 11:42 — HECHO en Pruebas: receta "nueva" que no se graba (fe05734, b02c875, eae175e). Me DETENGO.
 **Qué pasó en producción (solo lectura, bitácora):**
