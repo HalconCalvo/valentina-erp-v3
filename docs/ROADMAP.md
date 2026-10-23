@@ -293,7 +293,7 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - 63b066a, migración fb91a5ebd149: OV-0123 y OV-0124 sin IVA (subtotal = total), comisión de la OV intacta (ya pagada).
   Probada en la copia de producción (sube/baja/sube) y en Pruebas; producción verificada 12:07.
 
-## 18. Tercera ola, tanda 1: ajustes finales (Gabriel, 23/10) — en Pruebas; tanda 1 APROBADA
+## 18. Tercera ola, tanda 1: ajustes finales (Gabriel, 23/10) — en producción (b563aa7); tanda 1 APROBADA
 - 0201f24: Simulador, Nómina/Destajos, Campo, Actualizar, OC directa con buscador estándar y alta rápida, estados de OC en
-  español, Todas las OCs, "Recibir faltante". Capturas docs/ola3_tanda1_final. Falta: pase a main.
+  español, Todas las OCs, "Recibir faltante". Capturas docs/ola3_tanda1_final.
 - Siguiente (espera a Gabriel): tanda 2 en orden Gerencia → Tesorería → tablero de Dirección.

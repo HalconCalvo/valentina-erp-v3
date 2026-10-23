@@ -10,6 +10,20 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
+### 23/10 16:43 — TERCERA OLA, TANDA 2, parte 1: GERENCIA (orden aprobado por Gabriel: Gerencia → Tesorería → Tablero de Dirección)
+Antes: confirmar que el deploy de b563aa7 (tanda 1) llegó a producción.
+Aplicar la guía v2 (docs/GUIA_PANTALLAS.md con TODAS las reglas acordadas en la tanda 1) a Gerencia: hub y todos sus niveles
+(Pendientes, Bancos, Cobranza/CxC, Pagos y demás; Nómina ya quedó salvo lo pendiente: "Nueva cuenta" con botón nativo y 2 tablas
+sin vacío), en `pruebas`.
+Reglas (las de la tanda 1): solo apariencia — mismos datos, botones, permisos (D41: Gerencia no ve Bancos) y flujos; listados a
+ancho completo, formularios angostos; un solo botón de color por pantalla; títulos sobre su columna, importes a la derecha
+tabular-nums; columnas principales ordenables; fechas DD/MM/AAAA y hora de Mérida; sin emojis; colores de material se conservan;
+pantalla con sub-tarjetas muestra SOLO las tarjetas y cada una abre su pantalla con "Regresar a …"; tarjetas con el formato de
+Comisiones (etiqueta chica, título grande, dato abajo; las de indicador como Cobranza); etiquetas chicas en mayúsculas se quedan.
+Funciones nuevas (buscador, filtro, etc.): NO hacerlas, solo proponerlas.
+Commit por pantalla o grupo pequeño. Capturas antes/después en docs/ola3_tanda2_gerencia/. Reporte en Hechas con lista de
+pantallas, rutas de menú para que Gabriel las revise, propuestas y dudas. NO seguir con Tesorería hasta que Gabriel apruebe.
+
 ## Preguntas para el asesor
 
 - [2026-10-16 15:44] D41, dudas que NO cambié:
@@ -67,6 +81,9 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 23/10 16:43 — PASE A MAIN hecho (Gabriel: 06f3c80 → b563aa7). Tanda 1 en producción
+- Render publicó la pantalla nueva (con "Recibir faltante"); API 200; migración sin cambio (fb91a5ebd149).
 
 ### 23/10 12:41 — HECHO en Pruebas: ajustes finales de la tanda 1 (commit 0201f24). Listo para main. Propuesta de tanda 2 abajo (NO empezada)
 **Pruebas:** frontend 61 (+2), tsc sin errores nuevos (147), build OK; sin cambios de servidor ni migraciones. Revisado en

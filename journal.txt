@@ -5461,3 +5461,10 @@ VIERNES 23/10/2026
   rápida (SearchableSelect gana onCreate/minChars/maxResults), estados de OC en español compartidos, Todas las OCs sin
   "Volver al listado" ni "0", "Recibir faltante" abre la OC en el Andén (?oc=). Campo no se pudo ver en Pruebas (sin
   jornada). Tanda 1 aprobada; propuesta de orden de tanda 2: Gerencia → Tesorería → tablero de Dirección (sin empezar).
+- 12:41 Ajustes finales de la tanda 1 en Pruebas (0201f24; reporte b563aa7, capturas docs/ola3_tanda1_final/). TANDA 1 APROBADA.
+  Pase a main pendiente de Gabriel: "! git push origin b563aa7:main" (sin migraciones).
+- Propuesta tanda 2 (pendiente de aprobar): 1) Gerencia, 2) Tesorería, 3) Tablero de Dirección. Mismo método que la tanda 1.
+- 14:07 Pausa. Al regresar: confirmar pase a main de b563aa7; aprobar orden tanda 2; Karina (Excel nuevo con pedidos nuevos,
+  PH 71, CANEA, PALMAR); Delmy (Xaze "Recibir con una factura"); COT-0100 (Regresar para cambios y corregir receta);
+  MIDO 4243/04243 con Administración; bug de fechas un día antes.
+- 16:43 Pase a main (Gabriel): b563aa7, tanda 1 en producción; frontend nuevo publicado, API 200, migración sin cambio.
