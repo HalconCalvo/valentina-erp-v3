@@ -370,6 +370,7 @@ export default function SimulatorPage() {
           title="Simulador y lotificación"
           subtitle="Agrupa productos pagados y cruza recetas contra el inventario físico."
           loading={loadingRadar}
+          onRefresh={() => void loadPendingInstances()}
           onBack={() => navigate('/design')}
           backLabel="Regresar a Diseño e Ingeniería"
         />
@@ -553,9 +554,6 @@ export default function SimulatorPage() {
                                         <span className="leading-none shrink-0" title={`Semáforo: ${effectiveSemaphore(inst)}`}>
                                           <SemaphoreDot color={effectiveSemaphore(inst)} />
                                         </span>
-                                        <span className="text-[10px] font-mono font-bold text-indigo-600 shrink-0">
-                                          OV-{String(inst.order_id).padStart(4, '0')}
-                                        </span>
                                         <h3 className="font-bold text-slate-800 text-sm min-w-0 flex-1 break-words">
                                           {inst.custom_name}
                                         </h3>
@@ -593,7 +591,7 @@ export default function SimulatorPage() {
                 {batchType === 'MDF' ? 'MDF (simulación de inventario)' : 'Piedra'}
               </span>
               <span className="block text-[11px] text-slate-400 mt-0.5">
-                Usa los badges MDF / Piedra en cada OV para filtrar y definir el tipo de lote.
+                Usa las etiquetas MDF / Piedra en cada OV para filtrar y definir el tipo de lote.
               </span>
             </p>
             {/* One colored button per screen: once there is a result, "Crear lote" is the main action */}

@@ -9,6 +9,12 @@ export interface SearchableSelectProps<T> {
     placeholder?: string;
     disabled?: boolean;
     className?: string;
+    /** Quick add: offers "+ <createLabel(text)>" when the typed text matches no item; the value may then be outside items. */
+    onCreate?: (text: string) => void;
+    createLabel?: (text: string) => string;
+    /** Entity search (checklist): suggestions from this many characters, at most maxResults of them. */
+    minChars?: number;
+    maxResults?: number;
 }
 
 function normalizeText(text: string): string {
@@ -27,6 +33,10 @@ export function SearchableSelect<T>({
     placeholder = 'Buscar...',
     disabled = false,
     className = '',
+    onCreate,
+    createLabel = (text) => `Dar de alta «${text}»`,
+    minChars = 0,
+    maxResults,
 }: SearchableSelectProps<T>) {
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -39,15 +49,22 @@ export function SearchableSelect<T>({
         [items, value, getValue],
     );
 
-    const selectedLabel = selectedItem ? getLabel(selectedItem) : '';
+    // A quick-added value is not in items yet: show it as typed
+    const selectedLabel = selectedItem ? getLabel(selectedItem) : (onCreate ? value : '');
 
     const filteredItems = useMemo(() => {
-        const normalizedDraft = normalizeText(draft);
-        if (!normalizedDraft) return items;
-        return items.filter((item) =>
-            normalizeText(getLabel(item)).includes(normalizedDraft),
-        );
-    }, [items, draft, getLabel]);
+        const normalizedDraft = normalizeText(draft.trim());
+        if (normalizedDraft.length < minChars) return [];
+        const matches = normalizedDraft
+            ? items.filter((item) => normalizeText(getLabel(item)).includes(normalizedDraft))
+            : items;
+        return maxResults ? matches.slice(0, maxResults) : matches;
+    }, [items, draft, getLabel, minChars, maxResults]);
+
+    const createText = draft.trim();
+    const canCreate = Boolean(onCreate) && createText.length >= Math.max(minChars, 2)
+        && !items.some((item) => normalizeText(getLabel(item)) === normalizeText(createText)
+            || normalizeText(getValue(item)) === normalizeText(createText));
 
     const updateDropdownPosition = () => {
         const rect = inputRef.current?.getBoundingClientRect();
@@ -149,8 +166,10 @@ export function SearchableSelect<T>({
                     className="max-h-[13rem] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg py-1"
                     role="listbox"
                 >
-                    {filteredItems.length === 0 ? (
-                        <li className="px-3 py-2 text-sm text-slate-400 italic">Sin resultados</li>
+                    {filteredItems.length === 0 && !canCreate ? (
+                        <li className="px-3 py-2 text-sm text-slate-400 italic">
+                            {draft.trim().length < minChars ? `Escribe al menos ${minChars} caracteres` : 'Sin resultados'}
+                        </li>
                     ) : (
                         filteredItems.map((item) => {
                             const itemValue = getValue(item);
@@ -173,6 +192,18 @@ export function SearchableSelect<T>({
                                 </li>
                             );
                         })
+                    )}
+                    {canCreate && (
+                        <li role="option" aria-selected={false}>
+                            <button
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => { onCreate?.(createText); setIsOpen(false); }}
+                            >
+                                + {createLabel(createText)}
+                            </button>
+                        </li>
                     )}
                 </ul>
             )}

@@ -93,6 +93,7 @@ export default function PrintCenterPage() {
   const [rows, setRows] = useState<LabelRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +115,7 @@ export default function PrintCenterPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const pendingCount = rows.length;
 
@@ -239,6 +240,7 @@ export default function PrintCenterPage() {
         title="Centro de impresión"
         subtitle="Etiquetas y manifiestos de piedra pendientes de generar."
         loading={loading}
+        onRefresh={() => setReloadKey((k) => k + 1)}
         onBack={() => navigate('/design')}
         backLabel="Regresar a Diseño e Ingeniería"
       />

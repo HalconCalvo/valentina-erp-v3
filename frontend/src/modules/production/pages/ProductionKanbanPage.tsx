@@ -1120,6 +1120,7 @@ export default function ProductionKanbanPage() {
             <Eye size={12} /> Solo lectura
           </span>
         ) : undefined}
+        onRefresh={() => { void loadBatches(); void loadReadyInstances(); }}
         onBack={() => navigate('/production')}
         backLabel="Regresar a Producción"
       />

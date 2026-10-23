@@ -284,7 +284,7 @@ const ManagementDashboard: React.FC = () => {
             }
             if (payrollSub === 'INSTALLATIONS') {
                 if (payrollTray === 'RETAINED') return { icon: Lock, title: 'Destajos sin firma', subtitle: 'Instalaciones que esperan la firma del cliente.' };
-                if (payrollTray === 'PAYABLE') return { icon: Unlock, title: 'Destajos por pagar', subtitle: 'Instalaciones con doble verde, listas para pagar.' };
+                if (payrollTray === 'PAYABLE') return { icon: Unlock, title: 'Destajos por pagar', subtitle: 'Instalaciones con la firma de conformidad del cliente, listas para pagar.' };
                 if (payrollTray === 'PAID') return { icon: CheckCircle2, title: 'Destajos pagados', subtitle: 'Pagos de instalación ya hechos.' };
                 return { icon: Users, title: 'Destajos', subtitle: 'Pagos de instalación por cuadrilla: sin firma, por pagar y pagados.' };
             }
@@ -316,6 +316,7 @@ const ManagementDashboard: React.FC = () => {
                     icon={header.icon}
                     title={header.title}
                     subtitle={header.subtitle}
+                    onRefresh={() => void refreshManagement()}
                     onBack={root !== null ? handleRegresar : undefined}
                     backLabel={getBackLabel()}
                 />

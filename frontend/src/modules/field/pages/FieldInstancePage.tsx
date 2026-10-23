@@ -396,7 +396,6 @@ export default function FieldInstancePage() {
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
                     onClick={() => {
                       if (!sigRef.current || sigRef.current.isEmpty()) {
                         toast.warning('Dibuja la firma antes de confirmar.');
@@ -405,7 +404,7 @@ export default function FieldInstancePage() {
                       setSignature(sigRef.current.getTrimmedCanvas().toDataURL('image/png'));
                       toast.success('Firma guardada localmente.');
                     }}
-                    className="h-12 flex-1 text-sm font-bold border-indigo-300 text-indigo-700"
+                    className="h-12 flex-1 text-sm font-bold"
                   >
                     Confirmar firma
                   </Button>
@@ -434,9 +433,10 @@ export default function FieldInstancePage() {
               {busy ? 'Procesando...' : syncStatus?.text}
             </p>
           )}
-          {/* The screen's main action: the only colored button */}
+          {/* Gabriel 23/10: "Confirmar firma" is the colored button; Sincronizar goes without fill */}
           <Button
             type="button"
+            variant="outline"
             disabled={busy || (!isOnline && !hasLocalPending && pendingCount === 0)}
             onClick={() => void handleSync()}
             className="h-12 w-full text-base font-bold"

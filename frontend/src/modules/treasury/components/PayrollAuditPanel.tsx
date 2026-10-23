@@ -91,7 +91,6 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   accounts,
   onOrderInspect,
   onRefresh,
-  adminV4Labels = false,
   tray,
   onTrayChange,
 }) => {
@@ -817,12 +816,12 @@ export const PayrollAuditPanel: React.FC<Props> = ({
               </div>
               <div className="flex justify-end">
                 <div className="text-lg font-black text-indigo-600 tracking-tight leading-none truncate">
-                  {fmt(coOverview?.payable_total ?? 0)}
+                  Comisiones
                 </div>
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                 <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                  {adminV4Labels ? 'Vendedores (ingreso real)' : 'Retenidas, por pagar, histórico'}
+                  Por pagar {fmt(coOverview?.payable_total ?? 0)}
                 </p>
                 <TrendingUp size={14} className="text-indigo-400" />
               </div>
@@ -840,17 +839,17 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </div>
             <div className="ml-16 h-full flex flex-col justify-between pl-2">
               <div className="flex justify-between items-start">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Destajos</p>
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Nómina</p>
                 <Wrench size={16} className="text-emerald-500" />
               </div>
               <div className="flex justify-end">
                 <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate">
-                  {fmt(instOverview?.payable_total ?? 0)}
+                  Destajos
                 </div>
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                 <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                  {adminV4Labels ? 'Doble verde / firmas cliente' : 'Firma, doble verde, pagados'}
+                  Por pagar {fmt(instOverview?.payable_total ?? 0)}
                 </p>
                 <CheckCircle2 size={14} className="text-emerald-400" />
               </div>
@@ -868,25 +867,23 @@ export const PayrollAuditPanel: React.FC<Props> = ({
             </div>
             <div className="ml-16 h-full flex flex-col justify-between pl-2">
               <div className="flex justify-between items-start">
-                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Nómina semanal</p>
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Nómina</p>
                 <BarChart3 size={16} className="text-violet-500" />
               </div>
               <div className="flex justify-end">
                 <div className="text-lg font-black text-violet-700 tracking-tight leading-none truncate">
-                  {weeklyLast
-                    ? fmt(
-                        (weeklyLast.admin_payroll || 0) +
-                        (weeklyLast.design_sales_payroll || 0) +
-                        (weeklyLast.production_plant_payroll || 0)
-                      )
-                    : '—'}
+                  Nómina semanal
                 </div>
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                 <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
-                  {adminV4Labels
-                    ? 'Admin., Diseño, Producción, Ventas'
-                    : 'Cierre jueves — costos fijos'}
+                  {weeklyLast
+                    ? `Último cierre ${fmt(
+                        (weeklyLast.admin_payroll || 0) +
+                        (weeklyLast.design_sales_payroll || 0) +
+                        (weeklyLast.production_plant_payroll || 0)
+                      )}`
+                    : 'Sin cierres'}
                 </p>
                 <AlertTriangle size={14} className="text-violet-400" />
               </div>
@@ -1001,11 +998,11 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                   </div>
                   <div className="flex justify-end">
                     <div className="text-lg font-black text-amber-700 tracking-tight leading-none truncate">
-                      {fmt(totals.inst.RETAINED)}
+                      Sin firma
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Sin firma</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">{fmt(totals.inst.RETAINED)}</p>
                     <Bell size={14} className="text-amber-400" />
                   </div>
                 </div>
@@ -1026,11 +1023,11 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                   </div>
                   <div className="flex justify-end">
                     <div className="text-lg font-black text-emerald-600 tracking-tight leading-none truncate">
-                      {fmt(totals.inst.PAYABLE)}
+                      Por pagar
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Por pagar (doble verde)</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">{fmt(totals.inst.PAYABLE)}</p>
                     <Search size={14} className="text-emerald-400" />
                   </div>
                 </div>
@@ -1051,11 +1048,11 @@ export const PayrollAuditPanel: React.FC<Props> = ({
                   </div>
                   <div className="flex justify-end">
                     <div className="text-lg font-black text-slate-700 tracking-tight leading-none truncate">
-                      {fmt(totals.inst.PAID)}
+                      Pagadas
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">Pagadas</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">{fmt(totals.inst.PAID)}</p>
                     <CheckCircle2 size={14} className="text-slate-400" />
                   </div>
                 </div>

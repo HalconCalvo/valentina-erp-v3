@@ -1,3 +1,4 @@
+import { poStatusLabel } from '@/modules/foundations/utils/purchaseOrderStatus';
 import React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -85,7 +86,7 @@ export const VStatusBadge: React.FC<VStatusBadgeProps> = ({
         className,
       )}
     >
-      {status}
+      {entity === 'oc' ? poStatusLabel(status) : status}
     </span>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
     Truck, CheckCircle2, Save, PackageCheck, Ban, AlertTriangle, Plus, X, Search,
 } from 'lucide-react';
@@ -62,7 +63,7 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
     // Gabriel 20/10: on-screen search (folio or supplier, no case/accents) and status filter for the list
     const [poSearch, setPoSearch] = useState('');
     const [poStatusFilter, setPoStatusFilter] = useState('');
-    const [isLoadingPOs, setIsLoadingPOs] = useState(false);
+    const [isLoadingPOs, setIsLoadingPOs] = useState(true);  // the list loads on mount
     
     const [selectedPO, setSelectedPO] = useState<any | null>(null);
     const [oneInvoice, setOneInvoice] = useState(false);
@@ -173,6 +174,18 @@ const InventoryReceptionPage: React.FC<InventoryReceptionPageProps> = ({ embedde
         setInvoiceTotal(totalRecibido);
         setDisplayTotal(formatInitialAmount(totalRecibido));
     };
+
+    // "Recibir faltante" in Compras › En recepción opens its OC here (/inventory/reception?oc=<id>)
+    const [searchParams, setSearchParams] = useSearchParams();
+    const requestedPoId = Number(searchParams.get('oc')) || null;
+    useEffect(() => {
+        if (!requestedPoId || isLoadingPOs) return;
+        const po = incomingPOs.find((o: any) => o.id === requestedPoId);
+        if (po) handleSelectPO(po);
+        else if (incomingPOs.length > 0) toast.warning('Esa OC ya no está pendiente de recibir.');
+        setSearchParams({}, { replace: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [requestedPoId, incomingPOs, isLoadingPOs]);
 
     const handleAmountInput = (val: string) => {
         let cleanVal = val.replace(/[^0-9.]/g, '');

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Search, Ban, Send, PackageCheck,
     ArrowUpRight,
@@ -109,6 +110,7 @@ const OrderTotals: React.FC<{ subtotal: number; taxRate: number; total: number; 
 );
 
 export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSubSectionChange, targetTab, onExternalBack }) => {
+    const navigate = useNavigate();
     const [activeSubSection, setActiveSubSection] = useState<SubSection>(targetTab as SubSection || null);
     const [allOrdersDetailOpen, setAllOrdersDetailOpen] = useState(false);
     const [allOrdersCloseSignal, setAllOrdersCloseSignal] = useState(0);
@@ -145,7 +147,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
         items: [{ sku: '', material_name: '', qty: 1, expected_cost: '0.00' }] 
     });
 
-    const [activeDropdown, setActiveDropdown] = useState<{type: 'provider' | 'sku' | 'material' | null, index: number | null}>({type: null, index: null});
+    const [activeDropdown, setActiveDropdown] = useState<{type: 'material' | null, index: number | null}>({type: null, index: null});
 
     const [newMatModal, setNewMatModal] = useState<{open: boolean, rowIndex: number | null}>({open: false, rowIndex: null});
     const [newMatForm, setNewMatForm] = useState({
@@ -883,13 +885,10 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
     const getMatSku = (m: any) => String(m?.sku || m?.code || m?.item_code || '').trim();
 
     const searchProv = (manualOrderForm.provider_name || '').toLowerCase();
-    const filteredProviders = providersList.filter(p => getProvName(p).toLowerCase().includes(searchProv));
     const exactProviderMatch = searchProv !== '' && providersList.some(p => getProvName(p).toLowerCase() === searchProv);
     const isNewProvider = searchProv !== '' && !exactProviderMatch;
 
     const activeRow = activeDropdown.index !== null ? manualOrderForm.items[activeDropdown.index] : null;
-    const searchSku = activeRow ? (activeRow.sku || '').toLowerCase() : '';
-    const filteredMaterialsBySku = materialsList.filter(m => getMatSku(m).toLowerCase().includes(searchSku));
     const searchDesc = activeRow ? (activeRow.material_name || '').toLowerCase() : '';
     const filteredMaterialsByDesc = materialsList.filter(m => getMatDesc(m).toLowerCase().includes(searchDesc));
 
@@ -1344,7 +1343,17 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                                 Rechazar
                                             </Button>
                                         </div>
-                                    ) : <div />}
+                                    ) : (
+                                        <div className="flex gap-3">
+                                            {/* Gabriel 23/10: what is missing is received in the Andén, with this OC open */}
+                                            <Button
+                                                onClick={() => navigate(`/inventory/reception?oc=${order.id}`)}
+                                                title="Abrir esta OC en el Andén para recibir lo que falta"
+                                            >
+                                                <Truck size={16} /> Recibir faltante
+                                            </Button>
+                                        </div>
+                                    )}
                                     <OrderTotals subtotal={subtotal} taxRate={order.tax_rate ?? 0.16} total={total} />
                                 </div>
                             </div>
@@ -1520,7 +1529,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
             }]
             : []),
         { id: 'PARTIAL', title: 'D. EN RECEPCIÓN', icon: <Truck />, color: 'amber', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', activeBorder: 'border-l-amber-600', count: brakeOrders.filter(o => safeStatus(o.status) === 'RECIBIDA_PARCIAL').length, desc: 'Recepción parcial' },
-        { id: 'ALL_ORDERS', title: 'E. TODAS LAS OCs', icon: <Search />, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', activeBorder: 'border-l-slate-600', count: 0, desc: 'Consulta y corrección' },
+        { id: 'ALL_ORDERS', title: 'E. TODAS LAS OCs', icon: <Search />, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-100', activeBorder: 'border-l-slate-600', count: null, desc: 'Consulta y corrección' },
     ];
 
     const handleSubSectionBack = () => {
@@ -1547,7 +1556,7 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     {subMenuItems.map(item => (
                         <div key={item.id} className="w-full relative h-40">
                             <Card onClick={() => setActiveSubSection(item.id as SubSection)} className={`p-6 cursor-pointer transition-all border-l-4 transform hover:-translate-y-1 h-full bg-white shadow-sm hover:shadow-xl ${item.activeBorder}`}>
-                                <div className={`absolute top-0 left-0 bottom-0 w-20 flex items-center justify-center border-r font-black text-3xl ${item.bg} ${item.text} ${item.border}`}>{item.count}</div>
+                                <div className={`absolute top-0 left-0 bottom-0 w-20 flex items-center justify-center border-r font-black text-3xl ${item.bg} ${item.text} ${item.border}`}>{item.count ?? item.icon}</div>
                                 <div className="ml-20 h-full flex flex-col justify-between">
                                     <div className="flex justify-between items-start"><p className="text-[11px] font-black uppercase tracking-widest text-slate-800">{item.title}</p><div className={item.text}>{React.cloneElement(item.icon as React.ReactElement, { size: 18 })}</div></div>
                                     <div className="text-right"><p className={`text-lg font-black leading-none tracking-tighter ${item.text}`}>{item.desc}</p></div>
@@ -1632,19 +1641,21 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                     )}
                 >
                     <div className="space-y-4">
-                        <div className="relative">
+                        <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">Proveedor *</label>
-                            <Input
+                            {/* Standard search (Gabriel 23/10); a name not in the catalog is still registered on sending */}
+                            <SearchableSelect
+                                items={providersList}
                                 value={manualOrderForm.provider_name}
-                                onChange={(e) => {
-                                    setManualOrderForm({...manualOrderForm, provider_name: e.target.value});
-                                    setActiveDropdown({type: 'provider', index: null});
-                                }}
-                                onFocus={() => setActiveDropdown({type: 'provider', index: null})}
-                                onBlur={() => setTimeout(() => {
-                                    if(activeDropdown.type === 'provider') setActiveDropdown({type: null, index: null});
-                                }, 250)}
-                                placeholder="Selecciona o escribe el proveedor..."
+                                onChange={(name) => setManualOrderForm({ ...manualOrderForm, provider_name: name })}
+                                onCreate={(name) => setManualOrderForm({ ...manualOrderForm, provider_name: name })}
+                                createLabel={(name) => `Proveedor nuevo «${name}» (se guarda al enviar)`}
+                                getLabel={(p) => getProvName(p)}
+                                getValue={(p) => getProvName(p)}
+                                minChars={2}
+                                maxResults={8}
+                                placeholder="Busca el proveedor (mín. 2 letras)..."
+                                className="w-full"
                             />
                             <div className="flex items-center gap-2 mt-1.5 min-h-4">
                                 {exactProviderMatch && (
@@ -1658,30 +1669,6 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     </span>
                                 )}
                             </div>
-
-                            {activeDropdown.type === 'provider' && (
-                                <ul className="absolute z-[9999] top-[4.25rem] left-0 w-full md:w-2/3 bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto rounded-lg py-1">
-                                    {filteredProviders.length > 0 ? (
-                                        filteredProviders.map((p, i) => {
-                                            const pName = getProvName(p);
-                                            return (
-                                                <li 
-                                                    key={i} 
-                                                    onClick={() => {
-                                                        setManualOrderForm({...manualOrderForm, provider_name: pName});
-                                                        setActiveDropdown({type: null, index: null});
-                                                    }}
-                                                    className="px-4 py-2 text-sm text-slate-700 cursor-pointer hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 last:border-0"
-                                                >
-                                                    {pName}
-                                                </li>
-                                            );
-                                        })
-                                    ) : (
-                                        <li className="px-4 py-2 text-sm text-slate-400">No se encontraron coincidencias. Se registrará como nuevo.</li>
-                                    )}
-                                </ul>
-                            )}
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1720,57 +1707,33 @@ export const PurchaseOrdersModule: React.FC<PurchaseOrdersModuleProps> = ({ onSu
                                     {
                                         key: 'sku',
                                         label: 'SKU',
-                                        width: '192px',
+                                        width: '260px',
                                         render: (row) => {
                                             const rowIndex = Number(row.rowIndex);
                                             const item = manualOrderForm.items[rowIndex];
                                             if (!item) return null;
                                             return (
-                                                <div id={`oc-row-${rowIndex}`} className="align-middle relative">
-                                                    <Input
+                                                <div id={`oc-row-${rowIndex}`} className="align-middle">
+                                                    <SearchableSelect
+                                                        items={materialsList}
                                                         value={item.sku}
-                                                        onChange={(e) => {
-                                                            handleItemChange(rowIndex, 'sku', e.target.value);
-                                                            setActiveDropdown({type: 'sku', index: rowIndex});
+                                                        onChange={(sku) => {
+                                                            const material = materialsList.find((m) => getMatSku(m) === sku);
+                                                            if (material) handleSelectMaterial(rowIndex, material);
                                                         }}
-                                                        onFocus={() => setActiveDropdown({type: 'sku', index: rowIndex})}
-                                                        onBlur={() => setTimeout(() => {
-                                                            if(activeDropdown.type === 'sku' && activeDropdown.index === rowIndex) setActiveDropdown({type: null, index: null});
-                                                        }, 250)}
-                                                        placeholder="Buscar SKU..."
+                                                        onCreate={(sku) => {
+                                                            handleItemChange(rowIndex, 'sku', sku);
+                                                            setNewMatModal({ open: true, rowIndex });
+                                                            setNewMatForm(f => ({ ...f, sku, name: item.material_name }));
+                                                        }}
+                                                        createLabel={(sku) => `Dar de alta el material «${sku}»`}
+                                                        getLabel={(m) => `${getMatSku(m)} — ${getMatDesc(m)}`}
+                                                        getValue={(m) => getMatSku(m)}
+                                                        minChars={2}
+                                                        maxResults={8}
+                                                        placeholder="SKU o nombre..."
                                                         className="font-mono text-xs"
                                                     />
-                                                    {activeDropdown.type === 'sku' && activeDropdown.index === rowIndex && (
-                                                        <ul className="absolute z-[9999] top-full left-0 w-64 bg-white border border-slate-200 shadow-xl max-h-48 overflow-y-auto mt-1 rounded-lg py-1">
-                                                            {filteredMaterialsBySku.length > 0 ? (
-                                                                filteredMaterialsBySku.map((m, i) => {
-                                                                    const mSku = getMatSku(m);
-                                                                    const mDesc = getMatDesc(m);
-                                                                    return (
-                                                                        <li 
-                                                                            key={i} 
-                                                                            onClick={() => handleSelectMaterial(rowIndex, m)}
-                                                                            className="px-4 py-2 text-xs cursor-pointer hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 last:border-0"
-                                                                        >
-                                                                            <span className="font-mono text-indigo-600 block mb-0.5">{mSku}</span>
-                                                                            <span className="text-slate-600">{mDesc}</span>
-                                                                        </li>
-                                                                    );
-                                                                })
-                                                            ) : (
-                                                                <li
-                                                                    onClick={() => {
-                                                                        setNewMatModal({ open: true, rowIndex: rowIndex });
-                                                                        setNewMatForm(f => ({ ...f, sku: item.sku, name: item.material_name }));
-                                                                        setActiveDropdown({ type: null, index: null });
-                                                                    }}
-                                                                    className="px-4 py-2 text-xs font-bold text-indigo-600 cursor-pointer hover:bg-indigo-50 flex items-center gap-2"
-                                                                >
-                                                                    <Plus size={12} strokeWidth={3} /> Dar de alta este material
-                                                                </li>
-                                                            )}
-                                                        </ul>
-                                                    )}
                                                 </div>
                                             );
                                         },

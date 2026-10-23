@@ -12,12 +12,9 @@ import { formatDate, formatMoney } from '@/utils/format';
 import { poAuthorizedNote, poCreatedNote } from '../utils/poNotes';
 import { openApiPdf } from '@/utils/openPdf';
 import { toast } from '@/components/ui/VToast';
+import { poStatusLabel } from '../utils/purchaseOrderStatus';
 
-const STATUS_LABELS: Record<string, string> = {
-    DRAFT: 'Borrador', AUTORIZADA: 'Autorizada', ENVIADA: 'Enviada', EN_ESPERA_ANTICIPO: 'En espera de anticipo',
-    RECIBIDA_PARCIAL: 'Recibida parcial', RECIBIDA_TOTAL: 'Recibida total', CANCELADA: 'Cancelada',
-};
-const statusLabel = (status: string) => STATUS_LABELS[status] ?? status;
+const statusLabel = poStatusLabel;
 const STATUS_TONES: Record<string, string> = {
     DRAFT: 'bg-slate-50 text-slate-700 border-slate-200',
     AUTORIZADA: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -309,9 +306,6 @@ export const AllPurchaseOrdersModule: React.FC<AllPurchaseOrdersModuleProps> = (
         const closeCorrection = () => setCorrectModal(null);
         return (
             <div className="space-y-4">
-                <Button type="button" variant="link" className="h-auto p-0 text-slate-500" onClick={() => setSelected(null)}>
-                    Volver al listado
-                </Button>
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                     <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100 flex flex-wrap justify-between items-center gap-3">
                         <div className="min-w-0">
