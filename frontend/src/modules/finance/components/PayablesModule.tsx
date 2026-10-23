@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingDown, Clock, CheckCircle2, AlertCircle, AlertTriangle, Calendar, ArrowLeft, Check, Layers, ArrowUpDown, ArrowUp, ArrowDown, XCircle, FileText } from 'lucide-react';
-import { Card } from '@/components/ui/Card';
+import { TrendingDown, AlertCircle, Calendar, Layers, FileText } from 'lucide-react';
+import { VHubCard } from '@/components/ui/VHubCard';
+import { VPageHeader } from '@/components/ui/VPageHeader';
+import { ModalFooter } from '@/components/ui/ModalFooter';
 import { Button } from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
 import { financeService } from '../../../api/finance-service';
 import { treasuryService } from '../../../api/treasury-service';
 import axiosClient from '../../../api/axios-client';
@@ -30,7 +31,6 @@ type PayableFilter =
     | 'DUE_8_15'
     | 'DUE_GT_15'
     | null;
-type SortKey = 'provider_name' | 'invoice_number' | 'due_date' | 'outstanding_balance';
 
 function invoiceDueDayDiff(inv: PendingInvoice): number | null {
     if (!inv.due_date) return null;
@@ -81,7 +81,6 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const [filterDateTo, setFilterDateTo] = useState<string>('');
     const [isFinanceLoading, setIsFinanceLoading] = useState(false);
 
-    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
 
     const [selectedInvoice, setSelectedInvoice] = useState<PendingInvoice | null>(null);
     const [editingRequest, setEditingRequest] = useState<SupplierPayment | null>(null);
@@ -101,25 +100,15 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         if (parentBackSignal > lastParentBackSig.current) {
             lastParentBackSig.current = parentBackSignal;
             setActiveFilter(null);
-            setSortConfig(null);
             onSubSectionChange?.(false);
         }
     }, [parentBackSignal, onSubSectionChange]);
 
     const handleFilterChange = (filter: PayableFilter) => {
         setActiveFilter(filter);
-        setSortConfig(null); 
         if (onSubSectionChange) {
             onSubSectionChange(filter !== null);
         }
-    };
-
-    const handleSort = (key: SortKey) => {
-        let direction: 'asc' | 'desc' = 'asc';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
     };
 
     const loadData = async (showSpinner = true) => {
@@ -386,30 +375,14 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         }
     };
 
+    // Default order: advances first; the user reorders by clicking a column title (VTable)
     const sortedFilteredData = useMemo(() => [...doublyFiltered].sort((a, b) => {
-        if (sortConfig) {
-            let aVal: any = a[sortConfig.key];
-            let bVal: any = b[sortConfig.key];
-
-            if (sortConfig.key === 'due_date') {
-                aVal = new Date(a.due_date || 0).getTime();
-                bVal = new Date(b.due_date || 0).getTime();
-            }
-
-            if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-            if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-
-            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-        } else {
-            const aIsAdvance = (a as any).is_advance || String(a.invoice_number).startsWith('OC') || String(a.invoice_number).startsWith('COT');
-            const bIsAdvance = (b as any).is_advance || String(b.invoice_number).startsWith('OC') || String(b.invoice_number).startsWith('COT');
-            if (aIsAdvance && !bIsAdvance) return -1;
-            if (!aIsAdvance && bIsAdvance) return 1;  
-            return 0; 
-        }
-    }), [doublyFiltered, sortConfig]);
+        const aIsAdvance = (a as any).is_advance || String(a.invoice_number).startsWith('OC') || String(a.invoice_number).startsWith('COT');
+        const bIsAdvance = (b as any).is_advance || String(b.invoice_number).startsWith('OC') || String(b.invoice_number).startsWith('COT');
+        if (aIsAdvance && !bIsAdvance) return -1;
+        if (!aIsAdvance && bIsAdvance) return 1;
+        return 0;
+    }), [doublyFiltered]);
 
     const groupedByProvider = useMemo(() => {
         const groups: { providerName: string; invoices: PendingInvoice[]; subtotal: number }[] = [];
@@ -431,31 +404,16 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
     const totalAllCount = invoices.length;
     const totalAllAmount = invoices.reduce((sum, inv) => sum + inv.outstanding_balance, 0);
 
-    const theme = (() => {
-        switch (activeFilter) {
-            case 'ALL': return { border: 'border-indigo-300', bgLight: 'bg-indigo-50', textTitle: 'text-indigo-950', textIcon: 'text-indigo-600', btnHover: 'hover:bg-indigo-100 hover:text-indigo-800 hover:border-indigo-300', btnAction: 'bg-indigo-200 hover:bg-indigo-300 text-indigo-950 border border-indigo-300' };
-            case 'THIS_FRIDAY':
-            case 'DUE_0_7': return { border: 'border-red-300', bgLight: 'bg-red-50', textTitle: 'text-red-950', textIcon: 'text-red-600', btnHover: 'hover:bg-red-100 hover:text-red-800 hover:border-red-300', btnAction: 'bg-red-200 hover:bg-red-300 text-red-950 border border-red-300' };
-            case 'NEXT_15_DAYS':
-            case 'DUE_8_15': return { border: 'border-orange-200', bgLight: 'bg-orange-50', textTitle: 'text-orange-900', textIcon: 'text-orange-500', btnHover: 'hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200', btnAction: 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-200' };
-            case 'FUTURE':
-            case 'DUE_GT_15': return { border: 'border-yellow-300', bgLight: 'bg-yellow-50', textTitle: 'text-yellow-900', textIcon: 'text-yellow-500', btnHover: 'hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300', btnAction: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300' };
-            default: return { border: 'border-slate-200', bgLight: 'bg-slate-50', textTitle: 'text-slate-800', textIcon: 'text-slate-500', btnHover: 'hover:bg-slate-50 hover:text-slate-700', btnAction: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200' };
-        }
-    })();
-
-    const getActiveFilterTitle = () => {
-        switch(activeFilter) {
-            case 'ALL': return <><Layers className={theme.textIcon} size={20} /> Archivo Maestro (Todas las Cuentas)</>;
-            case 'THIS_FRIDAY': return <><AlertCircle className={theme.textIcon} size={20} /> Pago Inmediato (Vence este Viernes)</>;
-            case 'NEXT_15_DAYS': return <><Calendar className={theme.textIcon} size={20} /> Proyección Corta (Próximos 15 Días)</>;
-            case 'FUTURE': return <><TrendingDown className={theme.textIcon} size={20} /> Largo Plazo (Más de 15 Días)</>;
-            case 'DUE_0_7': return <><AlertCircle className={theme.textIcon} size={20} /> Inmediato (0–7 días)</>;
-            case 'DUE_8_15': return <><Calendar className={theme.textIcon} size={20} /> 8 a 15 días</>;
-            case 'DUE_GT_15': return <><TrendingDown className={theme.textIcon} size={20} /> Mayores a 15 días</>;
-            default: return '';
-        }
+    const FILTER_HEADERS: Record<Exclude<PayableFilter, null>, { icon: typeof Layers; title: string; subtitle: string }> = {
+        ALL: { icon: Layers, title: 'Todas las cuentas por pagar', subtitle: 'Facturas de proveedores con saldo, por proveedor.' },
+        THIS_FRIDAY: { icon: AlertCircle, title: 'Pago inmediato', subtitle: 'Facturas que vencen este viernes o ya vencidas.' },
+        NEXT_15_DAYS: { icon: Calendar, title: 'Próximos 15 días', subtitle: 'Facturas que vencen en los próximos 15 días.' },
+        FUTURE: { icon: TrendingDown, title: 'Más de 15 días', subtitle: 'Facturas con vencimiento lejano.' },
+        DUE_0_7: { icon: AlertCircle, title: 'Inmediato (0–7 días)', subtitle: 'Facturas que vencen en 7 días o ya vencidas.' },
+        DUE_8_15: { icon: Calendar, title: '8 a 15 días', subtitle: 'Facturas que vencen entre 8 y 15 días.' },
+        DUE_GT_15: { icon: TrendingDown, title: 'Más de 15 días', subtitle: 'Facturas con vencimiento lejano.' },
     };
+    const groupSubtotal = (name: string) => groupedByProvider.find((g) => g.providerName === name)?.subtotal ?? 0;
 
     const providerFilterOptions = useMemo(
         () => [
@@ -469,19 +427,24 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         {
             key: 'invoice_number',
             label: 'Factura',
+            sortable: true,
             render: (inv) => (
-                <button
+                <Button
+                    variant="link"
                     onClick={() => setViewingInvoice(inv)}
-                    className="font-mono bg-slate-100 border border-slate-200 px-2 py-1 rounded text-indigo-700 text-xs font-bold hover:bg-indigo-50 hover:border-indigo-200 transition-colors shadow-sm text-left"
+                    className="h-auto p-0 font-semibold text-indigo-600 hover:text-indigo-800"
                     title="Ver detalle del documento"
                 >
                     {inv.invoice_number}
-                </button>
+                </Button>
             ),
+            footer: <span className="text-slate-700 uppercase text-xs tracking-wide">Totales ({sortedFilteredData.length} {sortedFilteredData.length === 1 ? 'factura' : 'facturas'})</span>,
         },
         {
             key: 'due_date',
             label: 'Vencimiento',
+            sortable: true,
+            sortValue: (inv) => new Date(inv.due_date || 0).getTime(),
             render: (inv) => (
                 <span className="text-slate-600 font-medium">{formatDate(inv.due_date)}</span>
             ),
@@ -489,19 +452,25 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         {
             key: 'antiguedad',
             label: 'Antigüedad',
+            align: 'right',
+            sortable: true,
+            sortValue: (inv) => invoiceDueDayDiff(inv) ?? 0,
             render: (inv) => {
                 const dueDays = invoiceDueDayDiff(inv);
-                if (dueDays === null) return '—';
+                if (dueDays === null) return <span className="block text-right text-slate-300 text-xs">—</span>;
                 return dueDays >= 0 ? (
-                    <span className="text-sm font-bold text-emerald-600">vence en {dueDays} d</span>
+                    <span className="block text-right tabular-nums font-bold text-slate-500">vence en {dueDays} d</span>
                 ) : (
-                    <span className="text-sm font-bold text-rose-600">vencida {Math.abs(dueDays)} d</span>
+                    <span className="block text-right tabular-nums font-bold text-red-600">vencida {Math.abs(dueDays)} d</span>
                 );
             },
         },
         {
             key: 'total_amount',
             label: 'Importe',
+            align: 'right',
+            sortable: true,
+            footer: <span className="block text-right tabular-nums text-slate-800">{formatMoney(reportMetrics.totalFacturado)}</span>,
             render: (inv) => (
                 <span className="block text-right tabular-nums text-slate-700">{formatMoney(inv.total_amount)}</span>
             ),
@@ -509,6 +478,10 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         {
             key: 'abonado',
             label: 'Abonado',
+            align: 'right',
+            sortable: true,
+            sortValue: (inv) => (inv.total_amount || 0) - (inv.outstanding_balance || 0),
+            footer: <span className="block text-right tabular-nums text-emerald-800">{formatMoney(reportMetrics.totalAbonado)}</span>,
             render: (inv) => {
                 const abonado = (inv.total_amount || 0) - (inv.outstanding_balance || 0);
                 return (
@@ -519,8 +492,11 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         {
             key: 'outstanding_balance',
             label: 'Saldo',
+            align: 'right',
+            sortable: true,
+            footer: <span className="block text-right tabular-nums text-amber-800">{formatMoney(reportMetrics.totalSaldo)}</span>,
             render: (inv) => (
-                <span className={`block text-right font-black text-lg ${theme.textTitle}`}>
+                <span className="block text-right tabular-nums font-bold text-slate-800">
                     {formatMoney(inv.outstanding_balance)}
                 </span>
             ),
@@ -528,6 +504,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
         {
             key: 'action',
             label: 'Acción',
+            align: 'right',
             render: (inv) => {
                 const pendingReqForInv = sentRequests.filter(
                     (req) => req.invoice_folio === inv.invoice_number && req.provider_name === inv.provider_name,
@@ -539,36 +516,36 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                 const hasApproved = approvedReqForInv.length > 0;
 
                 return (
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-end gap-2">
                         {!canRegisterPayments ? null : hasActive ? (
                             canPay ? (
                                 <Button
                                     size="sm"
-                                    className="bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-sm transition-colors"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
                                     onClick={() => handleUrgentPayment(hasApproved ? approvedReqForInv[0] : pendingReqForInv[0])}
                                 >
-                                    ⚡ Pago Urgente
+                                    Pago urgente
                                 </Button>
                             ) : (
-                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200 font-bold py-1.5 border inline-block text-center">
-                                    Se Solicita Pago
-                                </Badge>
+                                <span className="inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">
+                                    Pago solicitado
+                                </span>
                             )
                         ) : inv.invoice_number?.startsWith('ANT-') ? (
                             <Button
                                 size="sm"
-                                className="bg-orange-500 hover:bg-orange-600 text-white font-bold shadow-sm transition-colors"
+                                className="bg-emerald-600 hover:bg-emerald-700"
                                 onClick={() => setSelectedInvoice(inv)}
                             >
-                                <AlertTriangle size={16} className="mr-1" /> Pago Anticipado
+                                Pago anticipado
                             </Button>
                         ) : (
                             <Button
                                 size="sm"
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm transition-colors"
+                                className="bg-emerald-600 hover:bg-emerald-700"
                                 onClick={() => setSelectedInvoice(inv)}
                             >
-                                <CheckCircle2 size={16} className="mr-1" /> {canPay ? 'Pagar' : 'Se Solicita Pago'}
+                                {canPay ? 'Pagar' : 'Solicitar pago'}
                             </Button>
                         )}
                         {isChecker
@@ -602,26 +579,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                 );
             },
         },
-    ], [theme, sentRequests, approvedRequests, isChecker, canPay, canRegisterPayments, cancellingId]);
-
-    const renderSortableHeader = (label: string, key: SortKey, align: 'left' | 'right' = 'left', className = 'flex-1') => {
-        const isActive = sortConfig?.key === key;
-        return (
-            <div
-                className={`${className} p-4 cursor-pointer hover:bg-slate-200/50 transition-colors select-none group ${align === 'right' ? 'text-right' : 'text-left'}`}
-                onClick={() => handleSort(key)}
-            >
-                <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : 'justify-start'} ${isActive ? 'text-indigo-800 font-black' : ''}`}>
-                    {label}
-                    {isActive ? (
-                        sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-600" /> : <ArrowDown size={14} className="text-indigo-600" />
-                    ) : (
-                        <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-50 transition-opacity" />
-                    )}
-                </div>
-            </div>
-        );
-    };
+    ], [sentRequests, approvedRequests, isChecker, canPay, canRegisterPayments, cancellingId, reportMetrics, sortedFilteredData.length]);
 
     return (
         <div className="space-y-6">
@@ -630,232 +588,107 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-4">
                     {dueBucketMode === 'calendar' ? (
                         <>
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('DUE_0_7')} className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl group-hover:bg-red-100">
-                                        {calendarBucketStats.n07}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> 4.1 Inmediato</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">0–7 días (vencidas incluidas)</p>
-                                        </div>
-                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatMoney(calendarBucketStats.a07)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('DUE_8_15')} className="p-6 border-l-4 border-l-orange-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl group-hover:bg-orange-100">
-                                        {calendarBucketStats.n815}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> 4.2 8–15 días</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Ventana intermedia</p>
-                                        </div>
-                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatMoney(calendarBucketStats.a815)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('DUE_GT_15')} className="p-6 border-l-4 border-l-yellow-400 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-yellow-50 text-yellow-700 border-r border-yellow-100 font-black text-3xl group-hover:bg-yellow-100">
-                                        {calendarBucketStats.n16}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> 4.3 &gt; 15 días</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Documentos con vencimiento lejano</p>
-                                        </div>
-                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatMoney(calendarBucketStats.a16)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('ALL')} className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl group-hover:bg-indigo-100">
-                                        {totalAllCount}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> 4.4 Todas las CxP</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Documentos por pagar</p>
-                                        </div>
-                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatMoney(totalAllAmount)}</div>
-                                    </div>
-                                </Card>
-                            </div>
+                            <VHubCard label="4.1 Inmediato" title="Inmediato" tone="red" icon={AlertCircle}
+                                footer={`${formatMoney(calendarBucketStats.a07)} · 0 a 7 días, vencidas incluidas`}
+                                side={calendarBucketStats.n07} onClick={() => handleFilterChange('DUE_0_7')} />
+                            <VHubCard label="4.2 8 a 15 días" title="8 a 15 días" tone="amber" icon={Calendar}
+                                footer={`${formatMoney(calendarBucketStats.a815)} · ventana intermedia`}
+                                side={calendarBucketStats.n815} onClick={() => handleFilterChange('DUE_8_15')} />
+                            <VHubCard label="4.3 Más de 15 días" title="Más de 15 días" tone="slate" icon={TrendingDown}
+                                footer={`${formatMoney(calendarBucketStats.a16)} · vencimiento lejano`}
+                                side={calendarBucketStats.n16} onClick={() => handleFilterChange('DUE_GT_15')} />
+                            <VHubCard label="4.4 Todas las CxP" title="Todas" tone="indigo" icon={Layers}
+                                footer={`${formatMoney(totalAllAmount)} · documentos por pagar`}
+                                side={totalAllCount} onClick={() => handleFilterChange('ALL')} />
                         </>
                     ) : (
                         <>
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('THIS_FRIDAY')} className="p-6 border-l-4 border-l-red-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-red-50 text-red-700 border-r border-red-100 font-black text-3xl group-hover:bg-red-100">
-                                        {stats?.overdue_count || 0}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-red-800 flex items-center gap-2"><AlertCircle size={18} /> Pago Inmediato</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Para este viernes</p>
-                                        </div>
-                                        <div className="text-lg font-black text-red-600 text-right tracking-tight">{formatMoney(stats?.overdue_amount || 0)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('NEXT_15_DAYS')} className="p-6 border-l-4 border-l-orange-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-orange-50 text-orange-700 border-r border-orange-100 font-black text-3xl group-hover:bg-orange-100">
-                                        {stats?.next_period_count || 0}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-orange-800 flex items-center gap-2"><Calendar size={18} /> Proyección Corta</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Próximos 15 días</p>
-                                        </div>
-                                        <div className="text-lg font-black text-orange-600 text-right tracking-tight">{formatMoney(stats?.next_period_amount || 0)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('FUTURE')} className="p-6 border-l-4 border-l-yellow-400 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-yellow-50 text-yellow-700 border-r border-yellow-100 font-black text-3xl group-hover:bg-yellow-100">
-                                        {stats?.future_count || 0}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-yellow-800 flex items-center gap-2"><TrendingDown size={18} /> Largo Plazo</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Más de 15 días</p>
-                                        </div>
-                                        <div className="text-lg font-black text-yellow-600 text-right tracking-tight">{formatMoney(stats?.future_amount || 0)}</div>
-                                    </div>
-                                </Card>
-                            </div>
-
-                            <div className="w-full relative">
-                                <Card onClick={() => handleFilterChange('ALL')} className="p-6 border-l-4 border-l-indigo-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="absolute top-0 left-0 bottom-0 w-16 flex items-center justify-center bg-indigo-50 text-indigo-700 border-r border-indigo-100 font-black text-3xl group-hover:bg-indigo-100">
-                                        {totalAllCount}
-                                    </div>
-                                    <div className="ml-16 h-full flex flex-col justify-between">
-                                        <div>
-                                            <h4 className="font-bold text-indigo-800 flex items-center gap-2"><Layers size={18} /> Todas las CxP</h4>
-                                            <p className="text-sm text-slate-500 mt-2 mb-4">Archivo Maestro</p>
-                                        </div>
-                                        <div className="text-lg font-black text-indigo-600 text-right tracking-tight">{formatMoney(totalAllAmount)}</div>
-                                    </div>
-                                </Card>
-                            </div>
+                            <VHubCard label="Pago inmediato" title="Este viernes" tone="red" icon={AlertCircle}
+                                footer={`${formatMoney(stats?.overdue_amount || 0)} · vencidas incluidas`}
+                                side={stats?.overdue_count || 0} onClick={() => handleFilterChange('THIS_FRIDAY')} />
+                            <VHubCard label="Proyección corta" title="15 días" tone="amber" icon={Calendar}
+                                footer={`${formatMoney(stats?.next_period_amount || 0)} · próximos 15 días`}
+                                side={stats?.next_period_count || 0} onClick={() => handleFilterChange('NEXT_15_DAYS')} />
+                            <VHubCard label="Largo plazo" title="Más de 15 días" tone="slate" icon={TrendingDown}
+                                footer={`${formatMoney(stats?.future_amount || 0)} · vencimiento lejano`}
+                                side={stats?.future_count || 0} onClick={() => handleFilterChange('FUTURE')} />
+                            <VHubCard label="Todas las CxP" title="Todas" tone="indigo" icon={Layers}
+                                footer={`${formatMoney(totalAllAmount)} · documentos por pagar`}
+                                side={totalAllCount} onClick={() => handleFilterChange('ALL')} />
                         </>
                     )}
-                    <div className="w-full relative">
-                        <Card
-                            onClick={() => navigate('/finance/provider-statement')}
-                            className="p-6 border-l-4 border-l-teal-500 bg-white relative overflow-hidden group h-full flex flex-col justify-between cursor-pointer transition-transform hover:-translate-y-1 hover:shadow-xl"
-                        >
-                            <div>
-                                <h4 className="font-bold text-teal-800 flex items-center gap-2">
-                                    <FileText size={18} /> Estado de Cuenta por Proveedor
-                                </h4>
-                                <p className="text-sm text-slate-500 mt-2 mb-4">Facturas, pagos y saldo por proveedor</p>
-                            </div>
-                        </Card>
-                    </div>
+                    <VHubCard label="Proveedores" title="Estado de cuenta" tone="blue" icon={FileText}
+                        footer="Facturas, pagos y saldo por proveedor"
+                        side={<FileText size={28} />} onClick={() => navigate('/finance/provider-statement')} />
                 </div>
             ) : (
                 <div className="space-y-6">
-                    <div className={`bg-white rounded-xl shadow-md border ${theme.border} overflow-hidden mt-4`}>
-                        <div className={`p-4 ${theme.bgLight} border-b ${theme.border} flex justify-between items-center`}>
-                            <h3 className={`font-bold flex items-center gap-2 text-lg ${theme.textTitle}`}>
-                                {getActiveFilterTitle()}
-                            </h3>
-                            <Button variant="outline" onClick={() => handleFilterChange(null)}>
-                                <ArrowLeft size={16} /> Regresar
-                            </Button>
+                    <VPageHeader
+                        icon={FILTER_HEADERS[activeFilter].icon}
+                        title={FILTER_HEADERS[activeFilter].title}
+                        subtitle={FILTER_HEADERS[activeFilter].subtitle}
+                        loading={isFinanceLoading}
+                        onRefresh={() => void loadData(true)}
+                        onBack={() => handleFilterChange(null)}
+                        backLabel="Regresar a Cuentas por pagar"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Facturas vivas</p>
+                            <p className="text-2xl font-black text-indigo-700 tabular-nums mt-1">{reportMetrics.count}</p>
                         </div>
-                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Proveedor</label>
-                                    <SearchableSelect
-                                        items={providerFilterOptions}
-                                        value={filterProvider}
-                                        onChange={setFilterProvider}
-                                        getLabel={(o) => o.label}
-                                        getValue={(o) => o.value}
-                                        placeholder="Todos los proveedores"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Compras Desde</label>
-                                    <Input
-                                        type="date"
-                                        value={filterDateFrom}
-                                        onChange={(e) => setFilterDateFrom(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Compras Hasta</label>
-                                    <Input
-                                        type="date"
-                                        value={filterDateTo}
-                                        onChange={(e) => setFilterDateTo(e.target.value)}
-                                    />
-                                </div>
-                            </div>
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Total facturado</p>
+                            <p className="text-2xl font-black text-slate-800 tabular-nums mt-1">{formatMoney(reportMetrics.totalFacturado)}</p>
                         </div>
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-4 py-4 bg-white border-b border-slate-100">
-                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Facturas vivas</p>
-                                <p className="text-2xl font-black text-indigo-700 tabular-nums mt-1">{reportMetrics.count}</p>
-                            </div>
-                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Total facturado</p>
-                                <p className="text-2xl font-black text-slate-800 tabular-nums mt-1">{formatMoney(reportMetrics.totalFacturado)}</p>
-                            </div>
-                            <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
-                                <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Abonado</p>
-                                <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatMoney(reportMetrics.totalAbonado)}</p>
-                            </div>
-                            <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-4">
-                                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">Saldo por pagar</p>
-                                <p className="text-2xl font-black text-amber-800 tabular-nums mt-1">{formatMoney(reportMetrics.totalSaldo)}</p>
-                            </div>
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Abonado</p>
+                            <p className="text-2xl font-black text-emerald-700 tabular-nums mt-1">{formatMoney(reportMetrics.totalAbonado)}</p>
                         </div>
-                        <div className="overflow-auto max-h-[75vh]">
-                            <div className={`sticky top-0 z-20 flex text-xs text-slate-600 uppercase tracking-wider ${theme.bgLight} border-b ${theme.border} font-black`}>
-                                {renderSortableHeader('Factura', 'invoice_number')}
-                                {renderSortableHeader('Vencimiento', 'due_date')}
-                                <div className="flex-1 p-4">Antigüedad</div>
-                                <div className="flex-1 p-4 text-right">Importe</div>
-                                <div className="flex-1 p-4 text-right">Abonado</div>
-                                {renderSortableHeader('Saldo', 'outstanding_balance', 'right')}
-                                <div className="w-48 p-4 text-center shrink-0">Acción</div>
-                            </div>
-                            {isFinanceLoading ? (
-                                <div className="text-center py-12 text-slate-400 font-bold">Cargando desglose...</div>
-                            ) : doublyFiltered.length === 0 ? (
-                                <div className="text-center py-12 text-slate-400 italic font-medium">No hay facturas pendientes en esta categoría.</div>
-                            ) : (
-                                groupedByProvider.map((group) => (
-                                    <div key={group.providerName}>
-                                        <div className="sticky top-12 z-10 bg-indigo-50 px-4 py-3 flex justify-between items-center border-b border-indigo-100">
-                                            <span className="font-black text-indigo-800">{group.providerName}</span>
-                                            <span className="font-black text-indigo-800">{formatMoney(group.subtotal)}</span>
-                                        </div>
-                                        <VTable
-                                            columns={payableColumns as unknown as VTableColumn<Record<string, unknown>>[]}
-                                            data={group.invoices as unknown as Record<string, unknown>[]}
-                                            className="border-0 rounded-none shadow-none [&_thead]:hidden"
-                                            stickyHeader={false}
-                                        />
-                                    </div>
-                                ))
-                            )}
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Saldo por pagar</p>
+                            <p className="text-2xl font-black text-amber-700 tabular-nums mt-1">{formatMoney(reportMetrics.totalSaldo)}</p>
                         </div>
                     </div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Proveedor</label>
+                                <SearchableSelect
+                                    items={providerFilterOptions}
+                                    value={filterProvider}
+                                    onChange={setFilterProvider}
+                                    getLabel={(o) => o.label}
+                                    getValue={(o) => o.value}
+                                    placeholder="Todos los proveedores"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Compras desde</label>
+                                <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Compras hasta</label>
+                                <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
+                            </div>
+                        </div>
+                    </div>
+                    <VTable
+                        columns={payableColumns as unknown as VTableColumn<Record<string, unknown>>[]}
+                        data={sortedFilteredData as unknown as Record<string, unknown>[]}
+                        isLoading={isFinanceLoading}
+                        emptyState={{ title: 'No hay facturas pendientes con los filtros seleccionados.' }}
+                        headerStyle="report"
+                        maxHeight="75vh"
+                        groupBy={(row) => String((row as unknown as PendingInvoice).provider_name || '—')}
+                        renderGroupHeader={(key) => (
+                            <div className="flex justify-between items-center gap-3">
+                                <span className="font-black text-indigo-900">{key}</span>
+                                <span className="font-black text-indigo-800 tabular-nums">Debe: {formatMoney(groupSubtotal(key))}</span>
+                            </div>
+                        )}
+                        className="shadow-sm"
+                    />
                 </div>
             )}
 
@@ -900,8 +733,16 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                             if (savingInvoiceEdit) return;
                             setEditInvoiceModal({ open: false, inv: null });
                         }}
-                        title={`Editar Factura ${inv.invoice_number || ''}`}
+                        title={`Editar factura ${inv.invoice_number || ''}`}
                         size="sm"
+                        footer={(
+                            <ModalFooter
+                                onCancel={() => setEditInvoiceModal({ open: false, inv: null })}
+                                onConfirm={() => void handleSaveEditInvoice()}
+                                confirmLabel="Guardar cambios"
+                                busy={savingInvoiceEdit}
+                            />
+                        )}
                     >
                         <div className="flex flex-col gap-4">
                             {hasPayments && (
@@ -910,7 +751,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 </div>
                             )}
                             <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                <label className="block text-xs font-bold text-slate-500 mb-1">
                                     Folio de factura
                                 </label>
                                 <Input
@@ -921,7 +762,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                <label className="block text-xs font-bold text-slate-500 mb-1">
                                     Fecha de emisión
                                 </label>
                                 <Input
@@ -932,7 +773,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                <label className="block text-xs font-bold text-slate-500 mb-1">
                                     Fecha de vencimiento
                                 </label>
                                 <Input
@@ -942,7 +783,7 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">
+                                <label className="block text-xs font-bold text-slate-500 mb-1">
                                     Importe total
                                 </label>
                                 <Input
@@ -953,22 +794,6 @@ export const PayablesModule: React.FC<PayablesModuleProps> = ({
                                     onChange={(e) => setEditInvoiceForm((f) => ({ ...f, total_amount: e.target.value }))}
                                     disabled={hasPayments}
                                 />
-                            </div>
-                            <div className="flex items-center justify-between gap-4 pt-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setEditInvoiceModal({ open: false, inv: null })}
-                                    disabled={savingInvoiceEdit}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    onClick={() => void handleSaveEditInvoice()}
-                                    disabled={savingInvoiceEdit}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-                                >
-                                    {savingInvoiceEdit ? 'Guardando...' : 'Guardar cambios'}
-                                </Button>
                             </div>
                         </div>
                     </Modal>
