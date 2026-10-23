@@ -68,6 +68,74 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 23/10 12:41 — HECHO en Pruebas: ajustes finales de la tanda 1 (commit 0201f24). Listo para main. Propuesta de tanda 2 abajo (NO empezada)
+**Pruebas:** frontend 61 (+2), tsc sin errores nuevos (147), build OK; sin cambios de servidor ni migraciones. Revisado en
+pantalla en Pruebas, salvo Campo (ver 3). Capturas: docs/ola3_tanda1_final/01–10.
+1. **Simulador:** dice "Usa las etiquetas MDF / Piedra…". Dentro de cada OV los renglones ya no repiten "OV-0055". Tiene
+   "Actualizar" (01).
+2. **Nómina:**
+   - Destajos con el formato de Comisiones: etiqueta "Instalaciones", título "Sin firma" / "Por pagar" / "Pagadas" y el
+     monto abajo (02).
+   - Las 3 tarjetas de Nómina con el mismo formato: etiqueta "Nómina", título "Comisiones" / "Destajos" / "Nómina
+     semanal", y abajo "Por pagar $…" o "Último cierre $…" (03).
+   - Se quitó "doble verde": el subtítulo dice "Instalaciones con la firma de conformidad del cliente, listas para pagar".
+   - Pendiente de facturar usa tarjetas de indicador (el monto es el dato, como Cobranza); se quedan así.
+3. **Campo, Detalle de casa:** "Confirmar firma" es el botón de color y "Sincronizar" va sin relleno. No lo pude ver en
+   pantalla: el detalle solo abre casas de la jornada del día y en Pruebas no hay ninguna programada. Lo demás de las
+   dudas se queda como está (etiquetas chicas en mayúsculas, pestañas, "Mesa de control", números de los hubs).
+4. **Propuestas:**
+   - "Actualizar" en Simulador, Centro de impresión, Piso de producción y Gerencia (01, 09, 10, 03).
+   - **OC directa con el buscador estándar** de proveedor y de SKU: desde 2 letras, 8 sugerencias; el SKU busca por código
+     y nombre y llena descripción y precio (06–08).
+     - **Aviso, el alta rápida cambia de lugar pero se conserva:** al escribir aparece "+ Proveedor nuevo «…» (se guarda
+       al enviar)" o "+ Dar de alta el material «…»" (abre el alta de material de siempre).
+   - **Estados de OC en español:** se usan las mismas etiquetas en todo el módulo, también en la etiqueta de estado
+     común. No encontré ningún estado en inglés en las pantallas de Compras; si Gabriel vio alguno, que diga dónde.
+   - **Todas las OCs:** sin "Volver al listado" (regresa el "Regresar" del encabezado) y sin el "0" en la tarjeta (lleva
+     el ícono).
+   - **"Recibir faltante"** en cada OC de "En recepción" abre esa OC en el Andén con lo pendiente (04–05).
+     - Para probarlo, en Pruebas se marcó como enviada OC-M261009174812 (DINA ABRIL BRITO ESPINOSA) y se recibieron 40 de
+       100 con la factura "PRUEBA-2310"; quedó en recepción parcial.
+**Pase a main:** `! git push origin <último commit de pruebas>:main` (incluye 0201f24; sin migraciones).
+**Con esto la tanda 1 queda APROBADA.**
+
+**Propuesta de orden para la tanda 2 (sin empezar):**
+1. **Gerencia** (hub y niveles: Pendientes, Bancos, Cobranza, Pagos; Nómina ya quedó).
+   - Es la que más usa el patrón de sub-tarjetas y comparte tarjetas y tablas con Tesorería.
+   - Pendiente de la revisión: "Nueva cuenta" con botón nativo y 2 tablas sin vacío en Nómina.
+2. **Tesorería:** Cuentas por pagar, Cuentas por cobrar, Gastos operativos, Caja chica, Pagos a proveedor y Estado de
+   cuenta de proveedor.
+   - Subniveles con franja de color y `h3`; "Regresar a Tarjetas/Tareas".
+   - 3 modales hechos a mano en Gastos; 13 botones nativos en Caja chica.
+   - Tablas sin vacío ni carga.
+3. **Tablero de Dirección** (/director, Liquidez y Eficiencia con sub-tarjetas o pestañas, Saneamiento).
+   - Es el más grande y usa las tarjetas de los dos anteriores.
+   - Pendiente de la revisión: modal de salud hecho a mano, 3 tablas sin vacío, Saneamiento con encabezado viejo.
+- Cada pantalla, como en la tanda 1: Pruebas → revisión con Gabriel → ajustes → main.
+
+<details><summary>Instrucción original</summary>
+
+#### 23/10 12:16 — Ajustes de la revisión final de la tanda 1 (Gabriel, se van agregando; hacer en Pruebas al final de la revisión)
+1. Simulador (aprobado con ajustes): (a) "Usa los badges MDF / Piedra…" → "Usa las etiquetas MDF / Piedra…"; (b) en la lista de
+   la izquierda, quitar la etiqueta "OV-0055" repetida en cada renglón cuando ya están agrupados bajo su OV.
+2. Destajos (Gerencia → Nómina → Destajos): sus 3 tarjetas no siguen el formato de las demás (Comisiones y hubs). Hoy: etiqueta
+   "INSTALACIONES" repetida en las 3, el monto como texto grande y el nombre real escondido abajo en chiquito. Dejarlas igual que
+   Comisiones: etiqueta "Instalaciones", título grande "Sin firma" / "Por pagar" / "Pagadas", y el monto abajo. Quitar "(doble
+   verde)" del texto (jerga). Revisar que Nómina semanal y cualquier otra tarjeta de la tanda 1 tenga el mismo formato.
+3. Dudas de la tanda 1 (Gabriel 23/10): etiquetas chicas en mayúsculas en tarjetas y filtros SE QUEDAN (como Cobranza);
+   Detalle de casa en Campo: pestañas se quedan y el botón de color es "Confirmar firma" (Sincronizar sin relleno);
+   se queda "Mesa de control"; se quedan números/letras de las tarjetas de los hubs.
+4. Propuestas aprobadas: botón Actualizar en Simulador, Centro de impresión, Piso de Producción y Gerencia; buscador estándar
+   (SearchableSelect) de proveedor y SKU en la OC directa (sin perder el alta rápida si hoy existe: avisar si cambia); estados de
+   OC en español en todo el módulo; quitar el texto-enlace "Volver al listado" del detalle en Todas las OCs; quitar el contador
+   "0" de la tarjeta "Todas las OCs" (o mostrar el total real); botón "Recibir faltante" en cada OC de "En recepción" que abra
+   esa OC en el Andén.
+COMPLETA (23/10 12:31): hacer todo en Pruebas, revisar en pantalla, reportar en Hechas con capturas (docs/ola3_tanda1_final/) y
+dar el commit para el pase a main (lo hace Gabriel con "! git push"). Con esto la tanda 1 queda APROBADA; después, propuesta de
+orden para la tanda 2 (Tesorería, Gerencia, tablero de Dirección con el patrón de sub-tarjetas/pestañas) SIN empezarla.
+
+</details>
+
 ### 23/10 12:07 — PASE A MAIN hecho (Gabriel: 9b02cc4 → 06f3c80). Viveyuc en producción verificado (solo lectura)
 - Render aplicó fb91a5ebd149 a las 12:07; API 200.
 - OV-0123: Tasa Cero, subtotal $2,620,963.00, IVA $0; OV-0124: Tasa Cero, subtotal $157,551.00, IVA $0.

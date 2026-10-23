@@ -5444,3 +5444,20 @@ VIERNES 23/10/2026
   OV-0124 subtotal = total, IVA 0, partida legacy igual; probada sube/baja/sube en copia de producción y aplicada en Pruebas.
   El Excel de datos actuales ya da IVA% 0. Pendiente: pase a main (Gabriel).
 - 12:07 Pase a main (Gabriel): 06f3c80. Render aplicó fb91a5ebd149; OV-0123/0124 de Viveyuc en Tasa Cero en producción, comisión y saldos sin cambio.
+
+VIERNES 23/10/2026
+- 11:50 main 9b02cc4: receta en uso dice qué la usa ("COT-0100 (autorizada)"), se bloquea desde que se abre, y "+ Nueva" ya no
+  queda tapado por el recuadro Monitor. COT-0100: Gabriel la corrige con "Regresar para cambios" → Ventas pide autorización →
+  Dirección corrige receta en la revisión.
+- 12:07 main 06f3c80: OV-0123 y OV-0124 (PROMOTORA VIVEYUC) a Tasa Cero (subtotal = total); comisiones sin cambio (Gabriel: ya
+  se pagaron); saldos sin cambio. Karina: IVA% = 0 en OVs nuevas de Viveyuc (no "EXENTO").
+- Karina: sus pedidos nuevos del Excel anterior nunca se agregaron (solo validó); debe pasarlos al Excel nuevo de "datos actuales".
+- Claude Code actualizado a 2.1.309.
+- 12:31 Revisión de la tanda 1 terminada con Gabriel (Simulador, Centro de impresión, Lotes, Pendiente de facturar, Campo,
+  Comisiones/Destajos). Ajustes y propuestas aprobados en el buzón (23/10 12:16). Tanda 1 APROBADA con esos ajustes.
+- 12:41 Ajustes finales de la tanda 1 (0201f24, en Pruebas): Simulador (etiquetas, sin OV repetida, Actualizar), Nómina y
+  Destajos con el formato de Comisiones (sin "doble verde"), Campo con "Confirmar firma" de color, Actualizar en Centro de
+  impresión / Piso de producción / Gerencia, OC directa con SearchableSelect (2 letras, 8 sugerencias) conservando el alta
+  rápida (SearchableSelect gana onCreate/minChars/maxResults), estados de OC en español compartidos, Todas las OCs sin
+  "Volver al listado" ni "0", "Recibir faltante" abre la OC en el Andén (?oc=). Campo no se pudo ver en Pruebas (sin
+  jornada). Tanda 1 aprobada; propuesta de orden de tanda 2: Gerencia → Tesorería → tablero de Dirección (sin empezar).
