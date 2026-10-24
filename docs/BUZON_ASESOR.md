@@ -106,7 +106,7 @@ factura son los mismos componentes que usa Tesorería: allá también cambian (m
 **Dudas:**
 - Detalle de cuenta bancaria: dejé los 4 botones sin color (antes 2 verdes); la guía permite uno. ¿Alguno debe ir de color?
 - Libro de movimientos del banco: NO lo hice ordenable; el saldo acumulado depende del orden y va por páginas.
-**Pase a main (lo corre Gabriel, sin migraciones):** `! git push origin <commit del reporte>:main` (ver mensaje de Claude Code).
+**Pase a main (lo corre Gabriel, sin migraciones):** `! git push origin 9ec7d3c:main` (o el commit siguiente que solo agrega esta línea).
 
 ### 23/10 16:43 — PASE A MAIN hecho (Gabriel: 06f3c80 → b563aa7). Tanda 1 en producción
 - Render publicó la pantalla nueva (con "Recibir faltante"); API 200; migración sin cambio (fb91a5ebd149).
