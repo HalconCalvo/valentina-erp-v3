@@ -5,7 +5,7 @@ import { salesService } from '../../../api/sales-service';
 import { Input } from '@/components/ui/Input';
 import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
 import { toast } from '@/components/ui/VToast';
-import { formatMoney } from '@/utils/format';
+import { formatMoney, businessToday } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 
@@ -159,7 +159,7 @@ export const ReceivableChargeModal: React.FC<ReceivableChargeModalProps> = ({
             setInvoiceFolio('');
             setSelectedInstances([]);
             setTipoFactura(order.status === 'WAITING_ADVANCE' ? 'ADVANCE' : 'PROGRESS');
-            setInvoiceDate(new Date().toISOString().slice(0, 10));
+            setInvoiceDate(businessToday());
             setImporteFactura(Number(objetivo.toFixed(2)));
             setDisplayImporte(new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(objetivo.toFixed(2))));
             setNcAdvanceFolio('');

@@ -14,6 +14,7 @@ import {
 import { quotationService } from '../../../api/quotation-service';
 import { getErrorMessage } from '../../../hooks/useQuotations';
 import type { Quotation, QuotationStatus } from '../../../types/quotations';
+import { businessToday } from '@/utils/format';
 
 export type QuotationActionKind =
     | 'REQUEST_AUTH'
@@ -49,7 +50,6 @@ export const quotationStatusBadgeClass = (status: QuotationStatus): string => {
   }
 };
 
-const todayYmd = () => new Date().toLocaleDateString('en-CA');
 
 // --- Row buttons ---------------------------------------------------------------------------------
 
@@ -154,12 +154,12 @@ interface DialogsProps {
 /** Every change of state of a quotation that needs a confirmation, a reason, a new date or the client PO. */
 export const QuotationActionDialogs: React.FC<DialogsProps> = ({ pending, onClose, onDone }) => {
     const [text, setText] = useState('');
-    const [date, setDate] = useState(todayYmd());
+    const [date, setDate] = useState(businessToday());
     const [processing, setProcessing] = useState(false);
 
     useEffect(() => {
         setText('');
-        setDate(todayYmd());
+        setDate(businessToday());
         setProcessing(false);
     }, [pending]);
 
@@ -215,8 +215,8 @@ export const QuotationActionDialogs: React.FC<DialogsProps> = ({ pending, onClos
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                         La cotización regresa a borrador: revisa los precios y vuelve a solicitar autorización.
                     </div>
-                    <Input type="date" min={todayYmd()} value={date} onChange={(e) => setDate(e.target.value)} />
-                    {footer('Renovar', Boolean(date) && date >= todayYmd(),
+                    <Input type="date" min={businessToday()} value={date} onChange={(e) => setDate(e.target.value)} />
+                    {footer('Renovar', Boolean(date) && date >= businessToday(),
                         () => run(async () => { await quotationService.renew(quotation.id, `${date}T12:00:00`); }, 'Vigencia renovada.'),
                         'bg-amber-500 hover:bg-amber-600 text-white')}
                 </div>

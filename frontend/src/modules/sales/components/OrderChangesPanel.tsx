@@ -24,7 +24,7 @@ import {
     quotationStatusBadgeClass,
     type PendingQuotationAction,
 } from './QuotationActions';
-import { formatMoney, formatInvoiceType } from '@/utils/format';
+import { formatMoney, formatInvoiceType, businessToday } from '@/utils/format';
 
 interface OrderChangesPanelProps {
     order: SalesOrder;
@@ -45,7 +45,6 @@ type MoneyDialog =
 const OPEN = ['DRAFT', 'PENDING_AUTH', 'CHANGES_REQUESTED', 'AUTHORIZED'];
 const CHANGEABLE_ORDER = ['WAITING_ADVANCE', 'SOLD', 'FINISHED'];
 const FINANCE_ROLES = ['DIRECTOR', 'MANAGER', 'ADMIN'];
-const todayYmd = () => new Date().toLocaleDateString('en-CA');
 const money = (value: number) => formatMoney(value);
 
 /** Change orders of an OV, the extra advance they require and the client credit notes they leave pending. */
@@ -60,7 +59,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
     const [reviewId, setReviewId] = useState<number | null>(null);
     const [pendingAction, setPendingAction] = useState<PendingQuotationAction | null>(null);
     const [dialog, setDialog] = useState<MoneyDialog | null>(null);
-    const [form, setForm] = useState({ folio: '', date: todayYmd(), amount: 0, reason: '', invoiceId: '' });
+    const [form, setForm] = useState({ folio: '', date: businessToday(), amount: 0, reason: '', invoiceId: '' });
     const [saving, setSaving] = useState(false);
 
     const load = useCallback(async () => {
@@ -94,7 +93,7 @@ export const OrderChangesPanel: React.FC<OrderChangesPanelProps> = ({ order, onC
 
     const openDialog = (next: MoneyDialog) => {
         const amount = 'amount' in next ? next.amount : 0;
-        setForm({ folio: '', date: todayYmd(), amount, reason: '', invoiceId: '' });
+        setForm({ folio: '', date: businessToday(), amount, reason: '', invoiceId: '' });
         setDialog(next);
     };
 

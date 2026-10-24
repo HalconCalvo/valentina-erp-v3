@@ -52,6 +52,7 @@ from app.core.audit_context import audit_reason
 from app.services import (audit_service, margin_service, payout_service, production_inventory_service,
                           progress_invoice_service, recipe_cost_service)
 from app.schemas.production_inventory_schema import OVCancelCreate
+from app.core.business_time import today_local
 
 
 def _normalized_role(user: User) -> str:
@@ -391,7 +392,7 @@ def patch_instance_delivery_deadline(
             deadline_date = date.fromisoformat(str(delivery_deadline).strip())
         except ValueError:
             raise HTTPException(status_code=400, detail="Fecha inválida. Use formato YYYY-MM-DD.")
-        if deadline_date < date.today():
+        if deadline_date < today_local():
             raise HTTPException(
                 status_code=400,
                 detail="La fecha estimada de entrega debe ser hoy o posterior.",

@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { ModalFooter } from '@/components/ui/ModalFooter';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { VPageHeader } from '@/components/ui/VPageHeader';
-import { formatDate, formatQty } from '@/utils/format';
+import { formatDate, formatQty, businessToday } from '@/utils/format';
 const STATUS_READY_TO_INSTALL = 'READY_TO_INSTALL'; // batch status (its instances become READY)
 const STATUS_PACKING = 'PACKING';
 
@@ -231,7 +231,7 @@ async function generateHerrajesPDF(
     );
   }
 
-  doc.save(`herrajes_${batch.folio}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`herrajes_${batch.folio}_${businessToday()}.pdf`);
 }
 
 async function openBlueprintLinks(batch: any) {

@@ -42,6 +42,7 @@ from app.models.sales import (
 from app.models.users import User
 from app.repositories import legacy_import_repository as legacy_repo
 from app.services import legacy_sync_service as legacy_sync
+from app.core.business_time import today_local
 
 logger = structlog.get_logger(__name__)
 
@@ -566,7 +567,7 @@ def _warn_folio_shapes(plan: _ImportPlan, row: int, project: str, inv: dict) -> 
 def _warn_dates(
     plan: _ImportPlan, row: int, project: str, invoice_date: datetime, installments: list[_InstallmentPlan]
 ) -> None:
-    today = datetime.utcnow().date()
+    today = today_local()
     if invoice_date.date() > today:
         plan.warn(INV_SHEET, row, project, f"Fecha_Factura {invoice_date:%d/%m/%Y} es futura.")
     for inst in installments:

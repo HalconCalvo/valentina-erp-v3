@@ -28,18 +28,13 @@ import {
 import { SalesOrderItem } from '../../../types/sales';
 import { QuotationStatus } from '../../../types/quotations';
 import { recipeLineCost, recipeTotal } from '@/utils/recipeCost';
-import { formatMoney } from '@/utils/format';
+import { formatMoney, businessToday, businessDaysFromToday, toBusinessYmd } from '@/utils/format';
 import { canSeeCosts } from '@/utils/costVisibility';
 
 // --- HELPERS DE FORMATO ---
 
 const safeDate = (dateString: string | undefined | null) => {
-    if (!dateString) return new Date().toISOString().split('T')[0];
-    try {
-        return new Date(dateString).toISOString().split('T')[0];
-    } catch {
-        return new Date().toISOString().split('T')[0];
-    }
+    return toBusinessYmd(dateString) || businessToday();
 };
 
 const CreateQuotePage: React.FC = () => {
@@ -83,11 +78,11 @@ const CreateQuoteContent: React.FC<{id?: string, navigate: any, readOnly?: boole
 
 
     const INITIAL_HEADER = {
-        created_at: new Date().toISOString().split('T')[0],
+        created_at: businessToday(),
         client_id: 0,
         project_name: '',
         tax_rate_id: 0,
-        valid_until: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        valid_until: businessDaysFromToday(15),
         applied_margin_percent: 0, 
         advance_percent: 60, 
         notes: '',      

@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { Download } from 'lucide-react';
 import { Button } from './Button';
 import { toast } from '@/components/ui/VToast';
+import { businessToday } from '@/utils/format';
 
 interface ExportButtonProps {
     data: any[];           // Los datos a exportar (ej. materials, clients)
@@ -35,7 +36,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
 
         // 3. Generar archivo y descargar
         // Agregamos fecha al nombre para que no se sobrescriba
-        const dateStr = new Date().toISOString().split('T')[0];
+        const dateStr = businessToday();
         const finalName = `${fileName}_${dateStr}.xlsx`;
         
         XLSX.writeFile(workbook, finalName);

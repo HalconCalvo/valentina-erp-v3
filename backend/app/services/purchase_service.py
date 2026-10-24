@@ -1239,8 +1239,8 @@ def _paid_invoice_for_delivery(db: Session, provider_id: int, data: dict, invoic
     db.add(PurchaseInvoice(
         provider_id=provider_id,
         invoice_number=invoice_folio,
-        issue_date=datetime.now().date(),
-        due_date=datetime.now().date(),
+        issue_date=today_local(),
+        due_date=today_local(),
         total_amount=invoice_total,
         outstanding_balance=0.0,
         status=getattr(InvoiceStatus, "PAID", "PAID"),

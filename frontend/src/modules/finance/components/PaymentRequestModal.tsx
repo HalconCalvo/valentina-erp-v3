@@ -6,7 +6,7 @@ import { toast } from '@/components/ui/VToast';
 import { PaymentMethod, PaymentRequestPayload, SupplierPayment, PendingInvoice } from '../../../types/finance';
 import { treasuryService } from '../../../api/treasury-service';
 import { BankAccount } from '../../../types/treasury';
-import { formatDate, formatMoney } from '@/utils/format';
+import { formatDate, formatMoney, businessToday, toBusinessYmd } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import { ModalFooter } from '@/components/ui/ModalFooter';
 
@@ -32,8 +32,8 @@ export const PaymentRequestModal: React.FC<PaymentRequestModalProps> = ({ invoic
 
     const [date, setDate] = useState<string>(
         existingRequest 
-            ? new Date(existingRequest.payment_date).toISOString().split('T')[0] 
-            : new Date().toISOString().split('T')[0]
+            ? toBusinessYmd(existingRequest.payment_date)
+            : businessToday()
     );
     const [method, setMethod] = useState<PaymentMethod>(existingRequest ? existingRequest.payment_method : 'TRANSFER');
     

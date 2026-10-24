@@ -27,7 +27,7 @@ import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { VTextarea } from '@/components/ui/VTextarea';
 import { VEmptyState } from '@/components/ui/VEmptyState';
 import { toast } from '@/components/ui/VToast';
-import { formatDate, formatDateTime, formatMoney } from '@/utils/format';
+import { formatDate, formatDateTime, formatMoney, businessToday } from '@/utils/format';
 import { TableActionEditIcon } from '@/lib/tableActionIcons';
 import { PayoutDialog, payoutMethodLabel, type PayoutChoice } from './PayoutDialog';
 
@@ -110,7 +110,7 @@ export const PayrollAuditPanel: React.FC<Props> = ({
   const [expandedInstDeferId, setExpandedInstDeferId] = useState<number | null>(null);
 
   const [weekly, setWeekly] = useState<WeeklyFixedCostPayload>({
-    week_reference_date: new Date().toISOString().slice(0, 10),
+    week_reference_date: businessToday(),
     admin_payroll: 0,
     design_sales_payroll: 0,
     production_plant_payroll: 0,

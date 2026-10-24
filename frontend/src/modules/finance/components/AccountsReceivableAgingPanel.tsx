@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { toast } from '@/components/ui/VToast';
-import { formatDate, formatMoney } from '@/utils/format';
+import { formatDate, formatMoney, businessToday } from '@/utils/format';
 
 // =============================================================================
 // V5.6 — Lógica única de antigüedad / monitor de cartera (carga + filas)
@@ -153,7 +153,7 @@ export function mergePendingCustomerPaymentsIntoOrders(orders: SalesOrder[], cxc
                 items: [],
                 currency: 'MXN',
                 is_warranty: false,
-                valid_until: new Date().toISOString().slice(0, 10),
+                valid_until: businessToday(),
             } as SalesOrder;
             byId.set(oid, order);
         }

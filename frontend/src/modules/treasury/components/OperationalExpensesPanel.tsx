@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
 import { TableActionCancelIcon, TableActionEditIcon } from '@/lib/tableActionIcons';
-import { formatDate, formatMoney } from '@/utils/format';
+import { formatDate, formatMoney, businessToday } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 
 const OVERHEAD_CATEGORIES_BASE = [
@@ -57,7 +57,7 @@ const emptyForm = () => ({
     concept: '',
     overhead_category: '',
     total_amount: '',
-    issue_date: new Date().toISOString().slice(0, 10),
+    issue_date: businessToday(),
     due_date: '',
     notes: '',
     instance_id: null as number | null,

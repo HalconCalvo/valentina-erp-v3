@@ -17,6 +17,7 @@ from app.schemas.analytics_schema import (
     OrderProfitabilityItem,
     TopClientItem,
 )
+from app.core.business_time import today_local
 
 _PROFIT_STATUSES = (
     SalesOrderStatus.SOLD,
@@ -47,7 +48,7 @@ def _aging_bucket(days: int) -> str:
 
 
 def get_cxc_aging(session: Session) -> CxcAgingStats:
-    today = date.today()
+    today = today_local()
     breakdown = {"0-30": 0.0, "31-60": 0.0, "61-90": 0.0, "+90": 0.0}
     total_pending = 0.0
     count = 0
@@ -119,7 +120,7 @@ def _bank_balance(session: Session) -> float:
 
 
 def _weekly_payroll_avg(session: Session) -> float:
-    cutoff = date.today() - timedelta(weeks=4)
+    cutoff = today_local() - timedelta(weeks=4)
     rows = session.exec(
         select(WeeklyFixedCost).where(WeeklyFixedCost.week_reference_date >= cutoff)
     ).all()
@@ -135,7 +136,7 @@ def _weekly_payroll_avg(session: Session) -> float:
 
 
 def _opex_daily_avg(session: Session) -> float:
-    start = (date.today() - timedelta(days=30)).isoformat()
+    start = (today_local() - timedelta(days=30)).isoformat()
     row = session.exec(
         text(
             """
@@ -172,7 +173,7 @@ def _build_cxp_expenses(session: Session) -> List[CashFlowEntry]:
         )
     ).all()
     for inv in invoices:
-        due = inv.due_date or date.today()
+        due = inv.due_date or today_local()
         items.append(
             CashFlowEntry(
                 date=due.isoformat(),
@@ -186,7 +187,7 @@ def _build_cxp_expenses(session: Session) -> List[CashFlowEntry]:
         )
     ).all()
     for pay in pending_payments:
-        pay_dt = pay.payment_date.date() if pay.payment_date else date.today()
+        pay_dt = pay.payment_date.date() if pay.payment_date else today_local()
         items.append(
             CashFlowEntry(
                 date=pay_dt.isoformat(),
@@ -205,7 +206,7 @@ def _project_horizon(
     opex_daily: float,
     days: int,
 ) -> float:
-    horizon = date.today() + timedelta(days=days)
+    horizon = today_local() + timedelta(days=days)
     inc = sum(item.amount for item in income if date.fromisoformat(item.date) <= horizon)
     exp = sum(item.amount for item in expenses if date.fromisoformat(item.date) <= horizon)
     recurring = payroll_weekly * (days / 7.0) + opex_daily * days
@@ -229,7 +230,7 @@ def get_cash_flow_projection(session: Session) -> CashFlowProjection:
 
 
 def get_top_clients(session: Session) -> List[TopClientItem]:
-    year_start = datetime(date.today().year, 1, 1)
+    year_start = datetime(today_local().year, 1, 1)
     rows = session.exec(
         select(
             SalesOrder.client_id,

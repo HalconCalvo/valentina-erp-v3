@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from app.repositories import installation_staffing_repository as repo
 from app.services.logistics_service import instance_context
+from app.core.business_time import today_local
 
 ALERT_DAYS = 3
 LANE_DATES = (("IM", "scheduled_inst_mdf"), ("IP", "scheduled_inst_stone"))
@@ -14,7 +15,7 @@ LANE_DATES = (("IM", "scheduled_inst_mdf"), ("IP", "scheduled_inst_stone"))
 
 def get_unstaffed(session: Session, today: date | None = None) -> List[dict]:
     """Every scheduled installation lane without crew, the closest first."""
-    today = today or date.today()
+    today = today or today_local()
     instances = repo.get_scheduled_open_instances(session)
     staffed = repo.get_staffed_lanes(session, (i.id for i in instances))
     rows = []

@@ -8,9 +8,9 @@ import { VCurrencyInput } from '@/components/ui/VCurrencyInput';
 import { VToggle } from '@/components/ui/VToggle';
 import { toast } from '@/components/ui/VToast';
 import { HouseInstancePicker, type UnlinkedHouseGroup } from './HouseInstancePicker';
+import { businessToday } from '@/utils/format';
 
 const labelClass = 'text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1';
-const todayYmd = () => new Date().toISOString().slice(0, 10);
 
 export interface InstallmentPayload {
     amount: number;
@@ -87,7 +87,7 @@ export const RegisterInstallmentDialog: React.FC<RegisterInstallmentDialogProps>
     onSubmit, onClose,
 }) => {
     const [amount, setAmount] = useState(initialAmount);
-    const [date, setDate] = useState(todayYmd());
+    const [date, setDate] = useState(businessToday());
     const [reference, setReference] = useState('');
     const [notes, setNotes] = useState('');
     const [accountId, setAccountId] = useState('');

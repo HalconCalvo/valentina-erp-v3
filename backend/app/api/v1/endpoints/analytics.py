@@ -16,6 +16,7 @@ from app.schemas.analytics_schema import (
 from app.schemas.director_dashboard_schema import DirectorSummaryRead
 from app.services import analytics_service, director_dashboard_service
 from app.core.permissions import allow, FINANCE_ROLES
+from app.core.business_time import today_local
 
 
 class AccountsPayableStats(SQLModel):
@@ -49,7 +50,7 @@ def get_accounts_payable_summary(session: SessionDep) -> Any:
     overdue_amount = 0.0
     upcoming_amount = 0.0
     breakdown = {"current": 0.0, "1-30": 0.0, "31-60": 0.0, "61-90": 0.0, "+90": 0.0}
-    today = date.today()
+    today = today_local()
     for inv in invoices:
         balance = inv.outstanding_balance
         if balance <= 0:

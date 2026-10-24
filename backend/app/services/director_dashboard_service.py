@@ -20,6 +20,7 @@ from app.schemas.director_dashboard_schema import (AmountLine, ClientPaymentSpee
                                                    OrderMarginRead, ProfitabilityRead, ReceivablesRead,
                                                    SalesKpiRead, TopClientsRead)
 from app.services import analytics_service, inventory_valuation_service, margin_service, payable_report_service
+from app.core.business_time import today_local
 
 TOP = 5
 STONE_PROCESS_SKUS = {"INSTALAGRANITO", "MAQGRANITO", "EMPAQPIEDRA"}
@@ -182,7 +183,7 @@ def sales_by_lane(session: Session, orders, items_by_order, global_rate: float =
 
 
 def get_summary(session: Session, user, year: Optional[int] = None) -> DirectorSummaryRead:
-    year = year or date.today().year
+    year = year or today_local().year
     orders = repo.get_sold_orders(session, year)
     items_by_order: Dict[int, list] = defaultdict(list)
     for item in repo.get_active_items(session, (o.id for o in orders)):

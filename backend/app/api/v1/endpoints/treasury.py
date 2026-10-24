@@ -488,7 +488,7 @@ def get_cost_kpi(
     """
     from datetime import timedelta
 
-    today = week_date or date.today()
+    today = week_date or today_local()
     days_since_thursday = (today.weekday() - 3) % 7
     week_start = today - timedelta(days=days_since_thursday)
     week_end = week_start + timedelta(days=6)

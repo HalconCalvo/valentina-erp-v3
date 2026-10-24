@@ -31,7 +31,7 @@ import { designService } from '../../../api/design-service';
 import { productionService } from '../../../api/production-service';
 import { VersionStatus } from '../../../types/design';
 import { recipeNumberFrom } from '@/utils/recipeNumber';
-import { formatDate } from '@/utils/format';
+import { formatDate, businessToday } from '@/utils/format';
 
 type ModuleView = 'HOME' | 'CATALOG' | 'DEFICIT' | 'SIMULATOR_MODULE' | 'SIMULATOR_BATCHES';
 
@@ -335,7 +335,7 @@ const DesignCatalogPage: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Recetas_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.json`;
+        a.download = `Recetas_${clientName.replace(/\s+/g, '_')}_${businessToday()}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -416,7 +416,7 @@ const DesignCatalogPage: React.FC = () => {
         XLSX.utils.book_append_sheet(wb, ws2, 'Versiones');
         XLSX.utils.book_append_sheet(wb, ws3, 'Recetas');
 
-        const fecha = new Date().toISOString().slice(0, 10);
+        const fecha = businessToday();
         XLSX.writeFile(wb, `Respaldo_Recetas_${fecha}.xlsx`);
     };
 

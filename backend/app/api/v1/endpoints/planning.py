@@ -54,6 +54,7 @@ from app.services.planning_service import (
     lanes_done,
     real_production_dates,
 )
+from app.core.business_time import today_local
 
 router = APIRouter()
 
@@ -827,7 +828,7 @@ def baptize_instances(
                     status_code=400,
                     detail="Fecha estimada de entrega inválida. Use formato YYYY-MM-DD.",
                 )
-            if deadline_date < date.today():
+            if deadline_date < today_local():
                 raise HTTPException(
                     status_code=400,
                     detail="La fecha estimada de entrega debe ser hoy o posterior.",

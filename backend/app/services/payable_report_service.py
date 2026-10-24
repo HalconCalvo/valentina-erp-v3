@@ -17,6 +17,7 @@ from app.schemas.finance_schema import AccountsPayableDashboardStats, PendingInv
 from app.services import payable_service
 from app.services.purchase_service import resolve_po_authorizer_display, resolve_po_authorizer_user
 from app.services.supplier_payment_service import clean_invoice_folio, reject_pending_requests
+from app.core.business_time import today_local
 
 DEAD_PO_STATUSES = ["CANCELADA", "RECHAZADA", "DRAFT"]
 
@@ -48,7 +49,7 @@ def _due_date(due, today: date) -> date:
 
 def _create_received_invoices(session: Session) -> None:
     """Only payables the warehouse already received exist in accounts_payable as PENDIENTE."""
-    today = datetime.now().date()
+    today = today_local()
     for ap_id, provider_id, folio, amount, due, subtotal, tax_rate, tax_amount in repo.get_pending_payable_rows(session):
         if amount is None or amount <= 0:
             continue
@@ -71,7 +72,7 @@ def sync_payables_to_invoices(session: Session) -> None:
 def dashboard_stats(session: Session) -> AccountsPayableDashboardStats:
     """Open balance due by this Friday, in the next 15 days after it, and later."""
     sync_payables_to_invoices(session)
-    today = date.today()
+    today = today_local()
     cutoff = today + timedelta(days=(4 - today.weekday()) % 7)
     next_limit = cutoff + timedelta(days=15)
     buckets = {"overdue": [0.0, 0], "next_period": [0.0, 0], "future": [0.0, 0]}

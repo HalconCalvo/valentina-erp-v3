@@ -24,10 +24,14 @@ export const formatQty = (value: number | null | undefined): string => QTY.forma
 
 export { formatPercent } from '@/modules/sales/utils/margins';
 
-/** The backend stores naive UTC timestamps; a plain YYYY-MM-DD is a calendar date. */
+/** A calendar date with no time: YYYY-MM-DD, or a naive midnight (date-only fields imported as 00:00:00, e.g. invoice dates). */
+const CALENDAR_DATE = /^(\d{4}-\d{2}-\d{2})(?:[T ]00:00:00(?:\.0+)?)?$/;
+
+/** The backend stores naive UTC timestamps; a calendar date is shown as is (never shifted a day by the time zone). */
 const toDate = (value: string | Date): Date | null => {
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-    const text = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00Z`
+    const calendar = CALENDAR_DATE.exec(value);
+    const text = calendar ? `${calendar[1]}T12:00:00Z`
         : /[zZ]|[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}Z`;
     const date = new Date(text);
     return Number.isNaN(date.getTime()) ? null : date;
@@ -52,6 +56,15 @@ export const toBusinessYmd = (value: string | Date | null | undefined): string =
     if (!date) return '';
     const p = parts(date, false);
     return `${p.year}-${p.month}-${p.day}`;
+};
+
+/** Today's YYYY-MM-DD in Mérida (default of date inputs; never the UTC day, which is tomorrow after 18:00). */
+export const businessToday = (): string => toBusinessYmd(new Date());
+
+/** YYYY-MM-DD of the Mérida day `days` after today (negative = before). */
+export const businessDaysFromToday = (days: number): string => {
+    const [year, month, day] = businessToday().split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 };
 
 /** DD/MM/AAAA HH:MM (24 h) in Mérida time. */
