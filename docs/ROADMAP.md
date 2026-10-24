@@ -303,5 +303,5 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
   docs/ola3_tanda2_gerencia.
 - Siguiente (al aprobar): Tesorería (con Rayos X y registrar cobro como paso aparte), luego Tablero de Dirección.
 - 23/10 18:27 (aprobados por Gabriel): fechas en Mérida (9874855), roles en español (1b53c4b), buscador en OV y
-  facturación (c321bf9). Espera revisión de Gabriel de Gerencia y pase a main.
+  facturación (c321bf9). En producción (32fed3a, 18:59).
 - Fuera de alcance: borrar AccountsPayablePage.tsx (sin ruta).

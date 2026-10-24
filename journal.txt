@@ -5477,3 +5477,4 @@ VIERNES 23/10/2026
   utils/format, fecha sin hora no se corre; today_local() en 18 usos del servidor + test que prohíbe el "hoy" UTC); roles
   en español (1b53c4b: role_label, "MANAGER" → GERENCIA en Usuarios); buscador en OV y facturación (c321bf9). En
   producción ningún dato guardado corrido (231 de ZENARA bien guardada, solo se veía mal). AccountsPayablePage es código muerto.
+- 18:59 Pase a main (Gabriel): 32fed3a, Gerencia tanda 2 + fechas/roles/buscador en producción; frontend nuevo publicado, API 200, migración sin cambio.

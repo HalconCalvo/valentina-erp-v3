@@ -68,6 +68,10 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 23/10 18:59 — PASE A MAIN hecho (Gabriel: b563aa7 → 32fed3a). Gerencia (tanda 2, parte 1) y los tres cambios en producción
+- Render publicó la pantalla nueva (buscador de OV y facturación presente); API 200; migración sin cambio (fb91a5ebd149).
+- Siguiente: Tesorería, cuando Gabriel apruebe.
+
 ### 23/10 18:27 — HECHO en Pruebas: tres cambios de Gerencia (9874855 fechas, 1b53c4b roles, c321bf9 buscador). Listo para main
 Instrucción original (23/10 18:12): 1) fechas de Mérida, no UTC, en un helper común; 2) rol en español en vez de
 "UserRole.DIRECTOR"; 3) buscador en "OV y facturación". Dudas resueltas: 4 botones de la cuenta sin color; libro del banco
