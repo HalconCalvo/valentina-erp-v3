@@ -302,4 +302,6 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - 402fb29, a7cef37, 42a27ef, 50db92e: hub, Pendientes, Bancos, CxC, OV y facturación, CxP y modales. Capturas
   docs/ola3_tanda2_gerencia.
 - Siguiente (al aprobar): Tesorería (con Rayos X y registrar cobro como paso aparte), luego Tablero de Dirección.
-- Fuera de alcance: fecha por defecto en UTC (mañana después de las 18:00 Mérida); rol en crudo del autorizador de OC.
+- 23/10 18:27 (aprobados por Gabriel): fechas en Mérida (9874855), roles en español (1b53c4b), buscador en OV y
+  facturación (c321bf9). Espera revisión de Gabriel de Gerencia y pase a main.
+- Fuera de alcance: borrar AccountsPayablePage.tsx (sin ruta).

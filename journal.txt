@@ -5473,3 +5473,7 @@ VIERNES 23/10/2026
   Nuevo VHubCard (tarjeta de hub con formato Comisiones). CxC/CxP/ingreso-egreso/Pago directo se comparten con Tesorería.
   Hallazgos (sin tocar): fecha UTC sugiere mañana después de las 18:00 Mérida (16 lugares); "UserRole.DIRECTOR" en crudo en
   el autorizador de la OC. Espera aprobación de Gabriel antes de Tesorería.
+- 18:27 Gerencia, tres cambios (asesor 18:12): fechas en Mérida (9874855: businessToday/businessDaysFromToday en
+  utils/format, fecha sin hora no se corre; today_local() en 18 usos del servidor + test que prohíbe el "hoy" UTC); roles
+  en español (1b53c4b: role_label, "MANAGER" → GERENCIA en Usuarios); buscador en OV y facturación (c321bf9). En
+  producción ningún dato guardado corrido (231 de ZENARA bien guardada, solo se veía mal). AccountsPayablePage es código muerto.

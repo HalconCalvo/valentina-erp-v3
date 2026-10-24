@@ -68,6 +68,38 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 ## Hechas
 
+### 23/10 18:27 — HECHO en Pruebas: tres cambios de Gerencia (9874855 fechas, 1b53c4b roles, c321bf9 buscador). Listo para main
+Instrucción original (23/10 18:12): 1) fechas de Mérida, no UTC, en un helper común; 2) rol en español en vez de
+"UserRole.DIRECTOR"; 3) buscador en "OV y facturación". Dudas resueltas: 4 botones de la cuenta sin color; libro del banco
+sin ordenar por columnas (sin cambio).
+**Pruebas:** backend 388 (+4), frontend 64 (+3), tsc sin errores nuevos (141), build OK; sin migraciones. Revisado en
+pantalla en Pruebas a las 18:20 (después de las 18:00): capturas docs/ola3_tanda2_gerencia/12–16.
+**1. Fechas (9874855).** Helper común en `frontend/src/utils/format.ts`: `businessToday()` y `businessDaysFromToday(n)`
+(día de Mérida) y `formatDate`/`toBusinessYmd` ya no corren una fecha sin hora (YYYY-MM-DD o medianoche sin zona, como las
+facturas importadas). En el servidor, `today_local()` (ya existía en `core/business_time.py`).
+- Frontend (12 lugares): Pago directo / Solicitar pago (fecha sugerida y la de una solicitud existente); Registrar factura
+  de cliente (ReceivableChargeModal); abonos de Rayos X (InstallmentDialogs); órdenes de cambio (OrderChangesPanel);
+  acciones de cotización (QuotationActions); Nueva cotización (fecha y vigencia +15 días); Nómina semanal
+  (PayrollAuditPanel); Gastos operativos; Antigüedad de saldos; nombre de archivo en Exportar, Recetas y Herrajes.
+- Servidor (10 módulos, 18 usos de date.today()/now().date()): reportes de CxP (vencimientos, facturas recibidas),
+  semana de nómina (Tesorería), plazos vencidos (Ventas, Planeación), analítica y tablero de Dirección, agenda de
+  instaladores, importación legacy (aviso de fecha futura), facturas de OC directa. Prueba nueva que impide volver a usar
+  el "hoy" en UTC.
+- Pantalla: "Pago directo" a las 18:20 sugiere 23/10 (antes 24/10); factura 231 de ZENARA (OV-0122) se ve 21/04/2025.
+- Datos guardados (producción, solo lectura): NINGUNO corrido. La 231 está bien guardada (21/04 00:00); se veía mal solo en
+  pantalla. Pagos a proveedor: 0 de 317 con fecha adelantada; cobros: 2 de 77 con fecha del día siguiente a su captura
+  (OV-0067 factura 587 y OV-0156 factura 639), pero llevan hora real (17:35, 17:38): son cobros registrados al otro día, no
+  el error.
+- No tocados: Planeación (calendario, tooltips, barra de salud) usa la hora del navegador, que en Mérida es correcta;
+  `management/pages/AccountsPayablePage.tsx` no lo usa ninguna ruta (código muerto; propongo borrarlo aparte).
+**2. Roles (1b53c4b).** `role_label()` en el servidor (Dirección, Gerencia, Administración, Ventas, Diseño, Almacén,
+Producción, Logística e instalación): detalle de factura y de OC ("autorizó Ing. Gabriel Frías — Dirección") y el mensaje
+de Planeación al armar cuadrilla. Usuarios mostraba "MANAGER": ahora "GERENCIA". Datos guardados: sin roles técnicos.
+**3. Buscador (c321bf9).** "OV y facturación": un campo a la derecha de las pestañas (guía v2, como Antigüedad), busca OV
+(OV-0045 o 45), cliente, proyecto o folio de factura, sin mayúsculas ni acentos; solo filtra en pantalla, en la pestaña
+activa. "vivéyuc" → las 5 OVs de VIVEYUC; "231" → OV-0122.
+**Pase a main (lo corre Gabriel, sin migraciones):** `! git push origin <commit del reporte>:main`.
+
 ### 23/10 18:07 — HECHO en Pruebas: tanda 2, parte 1, GERENCIA (402fb29, a7cef37, 42a27ef, 50db92e). Me DETENGO: Tesorería espera aprobación
 Instrucción original (23/10 16:43): guía v2 a Gerencia (hub y todos sus niveles) en `pruebas`, solo apariencia; capturas
 antes/después; reporte con pantallas, rutas, propuestas y dudas; NO seguir con Tesorería hasta que Gabriel apruebe.
