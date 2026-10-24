@@ -25,7 +25,7 @@ from app.repositories import installation_repository
 from app.schemas.planning_schema import UnstaffedInstallationRead
 from app.services import installation_staffing_service
 from app.core.deps import get_current_active_user
-from app.models.users import User, UserRole
+from app.models.users import User, UserRole, role_label
 from app.models.production import (
     InstallationAssignment,
     InstallationAssignmentStatus,
@@ -946,7 +946,7 @@ def assign_installation_team(
     if leader.role != UserRole.LOGISTICS:
         raise HTTPException(
             status_code=400,
-            detail=f"El Líder debe tener rol LOGISTICS. Rol actual: {leader.role}",
+            detail=f"El Líder debe tener rol {role_label(UserRole.LOGISTICS)}. Rol actual: {role_label(leader.role)}",
         )
     if payload.helper_1_user_id:
         h1 = session.get(User, payload.helper_1_user_id)

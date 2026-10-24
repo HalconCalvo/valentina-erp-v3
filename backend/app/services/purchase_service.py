@@ -10,6 +10,7 @@ from app.models.finance import InvoiceStatus, PaymentStatus, PurchaseInvoice, Pu
 
 AccountsPayable = SupplierPayment.AccountsPayable
 from app.models.foundations import Provider
+from app.models.users import role_label
 from app.models.material import Material, holds_stock
 from app.models.inventory import PurchaseOrder, PurchaseOrderItem, PurchaseRequisition
 from app.repositories import purchase_repository as purchase_repo
@@ -64,7 +65,7 @@ def resolve_po_authorizer_display(db: Session, po: PurchaseOrder) -> Optional[st
     if not user:
         return getattr(po, "authorized_by", None)
     name = (getattr(user, "full_name", None) or getattr(user, "email", None) or "Usuario").strip()
-    role = str(getattr(user, "role", "") or "").strip()
+    role = role_label(getattr(user, "role", None))
     return f"{name} — {role}" if role else name
 
 

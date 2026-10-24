@@ -17,7 +17,7 @@ import Modal from '@/components/ui/Modal';
 // --- 1. CONFIGURACIÓN DE ROLES (Nombres visuales) ---
 const ROLE_OPTIONS = {
     'DIRECTOR': 'DIRECCIÓN',       // Negro
-    'MANAGER': 'MANAGER',        // Púrpura 
+    'MANAGER': 'GERENCIA',       // Púrpura
     'ADMIN': 'ADMINISTRACIÓN',     // Índigo
     'SALES': 'VENTAS',             // Verde
     'DESIGN': 'DISEÑO',            // Rosa

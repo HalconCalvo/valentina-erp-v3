@@ -13,6 +13,19 @@ class UserRole(str, Enum):
     PRODUCTION = "PRODUCTION"   # Jefe de Producción
     LOGISTICS = "LOGISTICS"     # Logística e Instalación
 
+
+ROLE_LABELS = {
+    UserRole.DIRECTOR: "Dirección", UserRole.MANAGER: "Gerencia", UserRole.ADMIN: "Administración",
+    UserRole.SALES: "Ventas", UserRole.DESIGN: "Diseño", UserRole.WAREHOUSE: "Almacén",
+    UserRole.PRODUCTION: "Producción", UserRole.LOGISTICS: "Logística e instalación",
+}
+
+
+def role_label(role: object) -> str:
+    """Role name for people ("Dirección"), never the technical value ("UserRole.DIRECTOR")."""
+    value = str(getattr(role, "value", role) or "").strip().upper()
+    return ROLE_LABELS[UserRole(value)] if value in UserRole.__members__ else value
+
 # 1. Update: Lo que recibimos al editar (Todo opcional)
 class UserUpdate(SQLModel):
     email: str | None = None
