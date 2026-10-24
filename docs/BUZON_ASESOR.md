@@ -98,7 +98,7 @@ de Planeación al armar cuadrilla. Usuarios mostraba "MANAGER": ahora "GERENCIA"
 **3. Buscador (c321bf9).** "OV y facturación": un campo a la derecha de las pestañas (guía v2, como Antigüedad), busca OV
 (OV-0045 o 45), cliente, proyecto o folio de factura, sin mayúsculas ni acentos; solo filtra en pantalla, en la pestaña
 activa. "vivéyuc" → las 5 OVs de VIVEYUC; "231" → OV-0122.
-**Pase a main (lo corre Gabriel, sin migraciones):** `! git push origin <commit del reporte>:main`.
+**Pase a main (lo corre Gabriel, sin migraciones):** `! git push origin ef099a5:main`.
 
 ### 23/10 18:07 — HECHO en Pruebas: tanda 2, parte 1, GERENCIA (402fb29, a7cef37, 42a27ef, 50db92e). Me DETENGO: Tesorería espera aprobación
 Instrucción original (23/10 16:43): guía v2 a Gerencia (hub y todos sus niveles) en `pruebas`, solo apariencia; capturas
