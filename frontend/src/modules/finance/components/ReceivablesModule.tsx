@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, FileText, Lock, Unlock, Layers, Wallet } from 'lucide-react';
+import { CheckCircle2, FileText, Lock, Unlock, Layers, Search, Wallet } from 'lucide-react';
 import { VHubCard } from '@/components/ui/VHubCard';
 import { VPageHeader } from '@/components/ui/VPageHeader';
 import { VTable, type VTableColumn } from '@/components/ui/VTable';
@@ -13,6 +13,8 @@ import { useSalesOrders, useInvoicingRights } from '../../../hooks/useReceivable
 import { formatDate, formatMoney } from '@/utils/format';
 import { invoiceOpenBalance } from '@/utils/invoiceBalance';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { matchesSearch } from '@/utils/search';
 
 // ---> 1. AGREGAMOS EL FILTRO 'ALL' <---
 type ReceivableFilter = 'ALL' | 'ADVANCES' | null;
@@ -68,6 +70,7 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     const [activeFilter, setActiveFilter] = useState<ReceivableFilter>(defaultFilter);
     
     const [orderGroup, setOrderGroup] = useState<OrderGroup>('OPEN');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
     const [selectedOrderForCharge, setSelectedOrderForCharge] = useState<SalesOrder | null>(null);
@@ -143,9 +146,15 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
     }, [orders]);
     const activeOrders = ordersByGroup[orderGroup];
 
+    // Gabriel 23/10: on-screen search in OV y facturación (OV, client, project or invoice folio); it never changes data
+    const searchedOrders = useMemo(() => activeOrders.filter((o) => matchesSearch(
+        searchTerm, `OV-${String(o.id ?? '').padStart(4, '0')}`, getClientName(o), o.project_name,
+        ...(o.payments ?? []).map((p) => p.invoice_folio),
+    )), [activeOrders, searchTerm, getClientName]);
+
     const listData = useMemo(
-        () => (activeFilter === 'ADVANCES' ? advancesForFirstInvoice : activeFilter === 'ALL' ? activeOrders : []),
-        [activeFilter, advancesForFirstInvoice, activeOrders],
+        () => (activeFilter === 'ADVANCES' ? advancesForFirstInvoice : activeFilter === 'ALL' ? searchedOrders : []),
+        [activeFilter, advancesForFirstInvoice, searchedOrders],
     );
 
     const orderDate = (o: SalesOrder) => new Date(o.created_at || o.valid_until || 0).getTime() || (o.id || 0);
@@ -284,27 +293,41 @@ export const ReceivablesModule: React.FC<ReceivablesModuleProps> = ({
                     />
 
                     {activeFilter === 'ALL' && (
-                        <div className="flex flex-wrap gap-2" role="tablist">
-                            {ORDER_GROUPS.map(({ key, label }) => (
-                                <Button
-                                    key={key}
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={orderGroup === key}
-                                    variant="outline"
-                                    onClick={() => setOrderGroup(key)}
-                                    className={orderGroup === key ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-700' : 'text-slate-600'}
-                                >
-                                    {label} ({ordersByGroup[key].length})
-                                </Button>
-                            ))}
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="flex flex-wrap gap-2" role="tablist">
+                                {ORDER_GROUPS.map(({ key, label }) => (
+                                    <Button
+                                        key={key}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={orderGroup === key}
+                                        variant="outline"
+                                        onClick={() => setOrderGroup(key)}
+                                        className={orderGroup === key ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-700' : 'text-slate-600'}
+                                    >
+                                        {label} ({ordersByGroup[key].length})
+                                    </Button>
+                                ))}
+                            </div>
+                            <div className="relative w-full md:w-96">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Search size={18} className="text-slate-400" />
+                                </div>
+                                <Input
+                                    type="text"
+                                    className="pl-10 text-sm font-medium shadow-sm"
+                                    placeholder="Buscar OV, cliente, proyecto o factura..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
                         </div>
                     )}
 
                     <VTable
                         columns={orderColumns as unknown as VTableColumn<Record<string, unknown>>[]}
                         data={listData as unknown as Record<string, unknown>[]}
-                        emptyState={{ icon: <CheckCircle2 />, title: 'Bandeja limpia: no hay órdenes en esta lista.' }}
+                        emptyState={{ icon: <CheckCircle2 />, title: searchTerm.trim() && activeFilter === 'ALL' ? 'Ninguna OV coincide con la búsqueda.' : 'Bandeja limpia: no hay órdenes en esta lista.' }}
                         headerStyle="report"
                         defaultSortKey="date"
                         defaultSortDirection="asc"
