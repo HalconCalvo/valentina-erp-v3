@@ -297,3 +297,9 @@ la factura completa. Probado en Pruebas con Piloto 1 sin guardar.
 - 0201f24: Simulador, Nómina/Destajos, Campo, Actualizar, OC directa con buscador estándar y alta rápida, estados de OC en
   español, Todas las OCs, "Recibir faltante". Capturas docs/ola3_tanda1_final.
 - Siguiente (espera a Gabriel): tanda 2 en orden Gerencia → Tesorería → tablero de Dirección.
+
+## 19. Tercera ola, tanda 2, parte 1: Gerencia (asesor, 23/10 16:43) — en Pruebas; espera aprobación
+- 402fb29, a7cef37, 42a27ef, 50db92e: hub, Pendientes, Bancos, CxC, OV y facturación, CxP y modales. Capturas
+  docs/ola3_tanda2_gerencia.
+- Siguiente (al aprobar): Tesorería (con Rayos X y registrar cobro como paso aparte), luego Tablero de Dirección.
+- Fuera de alcance: fecha por defecto en UTC (mañana después de las 18:00 Mérida); rol en crudo del autorizador de OC.

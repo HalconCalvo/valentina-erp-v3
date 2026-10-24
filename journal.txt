@@ -5468,3 +5468,8 @@ VIERNES 23/10/2026
   PH 71, CANEA, PALMAR); Delmy (Xaze "Recibir con una factura"); COT-0100 (Regresar para cambios y corregir receta);
   MIDO 4243/04243 con Administración; bug de fechas un día antes.
 - 16:43 Pase a main (Gabriel): b563aa7, tanda 1 en producción; frontend nuevo publicado, API 200, migración sin cambio.
+- 18:07 Tanda 2, parte 1: Gerencia con la guía v2 en Pruebas (402fb29, a7cef37, 42a27ef, 50db92e; capturas
+  docs/ola3_tanda2_gerencia/). Hub, Pendientes, Bancos (y detalle de cuenta), CxC, OV y facturación, CxP y sus modales.
+  Nuevo VHubCard (tarjeta de hub con formato Comisiones). CxC/CxP/ingreso-egreso/Pago directo se comparten con Tesorería.
+  Hallazgos (sin tocar): fecha UTC sugiere mañana después de las 18:00 Mérida (16 lugares); "UserRole.DIRECTOR" en crudo en
+  el autorizador de la OC. Espera aprobación de Gabriel antes de Tesorería.

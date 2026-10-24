@@ -10,20 +10,6 @@ Formato: una instrucción por viñeta en "Pendientes". Al terminarla, Claude Cod
 
 > REGLA PARA CLAUDE CODE: al terminar una instrucción, mueve a "Hechas" SOLO ese bloque. Las demás instrucciones se quedan en Pendientes.
 
-### 23/10 16:43 — TERCERA OLA, TANDA 2, parte 1: GERENCIA (orden aprobado por Gabriel: Gerencia → Tesorería → Tablero de Dirección)
-Antes: confirmar que el deploy de b563aa7 (tanda 1) llegó a producción.
-Aplicar la guía v2 (docs/GUIA_PANTALLAS.md con TODAS las reglas acordadas en la tanda 1) a Gerencia: hub y todos sus niveles
-(Pendientes, Bancos, Cobranza/CxC, Pagos y demás; Nómina ya quedó salvo lo pendiente: "Nueva cuenta" con botón nativo y 2 tablas
-sin vacío), en `pruebas`.
-Reglas (las de la tanda 1): solo apariencia — mismos datos, botones, permisos (D41: Gerencia no ve Bancos) y flujos; listados a
-ancho completo, formularios angostos; un solo botón de color por pantalla; títulos sobre su columna, importes a la derecha
-tabular-nums; columnas principales ordenables; fechas DD/MM/AAAA y hora de Mérida; sin emojis; colores de material se conservan;
-pantalla con sub-tarjetas muestra SOLO las tarjetas y cada una abre su pantalla con "Regresar a …"; tarjetas con el formato de
-Comisiones (etiqueta chica, título grande, dato abajo; las de indicador como Cobranza); etiquetas chicas en mayúsculas se quedan.
-Funciones nuevas (buscador, filtro, etc.): NO hacerlas, solo proponerlas.
-Commit por pantalla o grupo pequeño. Capturas antes/después en docs/ola3_tanda2_gerencia/. Reporte en Hechas con lista de
-pantallas, rutas de menú para que Gabriel las revise, propuestas y dudas. NO seguir con Tesorería hasta que Gabriel apruebe.
-
 ## Preguntas para el asesor
 
 - [2026-10-16 15:44] D41, dudas que NO cambié:
@@ -81,6 +67,46 @@ pantallas, rutas de menú para que Gabriel las revise, propuestas y dudas. NO se
   - Agrega a tu reporte final la lista de commits pendientes de prueba en pantalla.
 
 ## Hechas
+
+### 23/10 18:07 — HECHO en Pruebas: tanda 2, parte 1, GERENCIA (402fb29, a7cef37, 42a27ef, 50db92e). Me DETENGO: Tesorería espera aprobación
+Instrucción original (23/10 16:43): guía v2 a Gerencia (hub y todos sus niveles) en `pruebas`, solo apariencia; capturas
+antes/después; reporte con pantallas, rutas, propuestas y dudas; NO seguir con Tesorería hasta que Gabriel apruebe.
+Antes: el deploy de b563aa7 llegó a producción (ver bloque de 16:43 abajo).
+**Pruebas:** frontend 61, tsc sin errores nuevos (141, antes 147), build OK; sin cambios de servidor ni migraciones. Revisado
+en pantalla en Pruebas. Capturas: docs/ola3_tanda2_gerencia/ (01–11, "_antes" y "_despues").
+**Pantallas (ruta de menú → qué cambió):**
+1. Gerencia (hub): tarjetas con el formato de Comisiones/Compras (etiqueta chica numerada, título grande, dato abajo); sin
+   emoji en Seguimiento; Bancos dice "solo Dirección" (D41 sin cambio).
+2. Gerencia → 1. Pendientes: tarjetas 1.1 Compras (OCs por firmar) y 1.2 Ventas (Anticipos), mismo formato.
+3. Gerencia → 2. Bancos: "Nueva cuenta" sube al encabezado (único botón de color); cuentas como tarjetas blancas.
+   → (cuenta): el encabezado es el nombre de la cuenta con "Regresar a Bancos"; saldo como cifra clave; Registrar ingreso /
+   egreso / Transferir / Estado de cuenta sin color; tabla con títulos sobre su columna e importes a la derecha.
+   Modales Registrar ingreso/egreso, Transferir, Cancelar movimiento y Nueva cuenta: modal estándar con pie estándar.
+4. Gerencia → 3. Cuentas por cobrar: tarjetas A/B/C/E con el formato. → A. Anticipos: encabezado estándar, una tabla
+   ordenable (folio abre Rayos X; Cliente, Proyecto, Estado, Fecha, Contrato con IVA, Anticipo solicitado) y "Rayos X y
+   facturar" verde en la última columna. Regresar a Cuentas por cobrar.
+5. Gerencia → OV y facturación: igual que 4 (Vigentes / Cerradas / Canceladas como pestañas; columna "Falta cobrar").
+6. Gerencia → 4. Cuentas por pagar: tarjetas 4.1–4.4 y Proveedores · Estado de cuenta. → (lista): cifras en tarjetas
+   blancas, filtros en su tarjeta, UNA tabla ordenable agrupada por proveedor ("Debe: …") con totales; acciones de flujo
+   verdes sin emoji ("Pagar", "Pago urgente", "Pago anticipado", "Solicitar pago"). Modales Pago directo / Solicitar
+   autorización / Editar solicitud y detalle de factura: modal estándar, sin emoji, tabla de partidas estándar.
+7. Gerencia → 5. Nómina: ya cumplía (el "Nueva cuenta" nativo que se anotó era el de Bancos, ya corregido; sus tablas ya
+   tenían vacío).
+**Impacto en Tesorería:** Cuentas por cobrar, Cuentas por pagar, el modal de ingreso/egreso, Pago directo y detalle de
+factura son los mismos componentes que usa Tesorería: allá también cambian (mismos datos y flujos).
+**Propuestas (no hechas):**
+- Rayos X (modal de ~2,050 líneas) y "Registrar cobro/factura" (~800): los comparten Ventas y Tesorería; hacerlos como
+  paso aparte, dentro de Tesorería.
+- Seguimiento de OV, Migración legacy, Saneamiento y Auditoría (pantallas /director y /ov-tracking): con el Tablero de Dirección.
+- Buscador por cliente/folio en OV y facturación (36 vigentes).
+- Fecha de pago en "Pago directo" (y otros 15 lugares del frontend): después de las 18:00 de Mérida sugiere la fecha de
+  MAÑANA (toma la fecha UTC). Hoy a las 18:05 sugirió 24/10. Es el "bug de fechas" pendiente; corrección aparte (comportamiento).
+- Detalle de factura dice "autorizó Ing. Gabriel Frías — UserRole.DIRECTOR": el servidor manda el rol en crudo; mostrar
+  "Dirección". Ya pasaba antes; corrección aparte (servidor, la usan también Compras).
+**Dudas:**
+- Detalle de cuenta bancaria: dejé los 4 botones sin color (antes 2 verdes); la guía permite uno. ¿Alguno debe ir de color?
+- Libro de movimientos del banco: NO lo hice ordenable; el saldo acumulado depende del orden y va por páginas.
+**Pase a main (lo corre Gabriel, sin migraciones):** `! git push origin <commit del reporte>:main` (ver mensaje de Claude Code).
 
 ### 23/10 16:43 — PASE A MAIN hecho (Gabriel: 06f3c80 → b563aa7). Tanda 1 en producción
 - Render publicó la pantalla nueva (con "Recibir faltante"); API 200; migración sin cambio (fb91a5ebd149).
